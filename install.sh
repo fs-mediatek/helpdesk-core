@@ -179,5 +179,48 @@ echo -e "    systemctl status helpdesk"
 echo -e "    systemctl restart helpdesk"
 echo -e "    journalctl -u helpdesk -f"
 echo ""
+# Create default admin user
+echo ""
+echo -e "  ${BOLD}Standard-Admin wird angelegt...${NC}"
+cd $APP_DIR
+node -e "
+const bcrypt = require('bcryptjs');
+const mysql = require('mysql2/promise');
+(async () => {
+  const pool = mysql.createPool({ host:'localhost', user:'root', password:'', database:'${DB_NAME}' });
+  await pool.execute(\`CREATE TABLE IF NOT EXISTS users (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(200) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(200) DEFAULT 'user',
+    department VARCHAR(100) DEFAULT NULL,
+    phone VARCHAR(50) DEFAULT NULL,
+    active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )\`);
+  await pool.execute(\`CREATE TABLE IF NOT EXISTS settings (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    key_name VARCHAR(100) NOT NULL UNIQUE,
+    value TEXT
+  )\`);
+  const [existing] = await pool.execute('SELECT COUNT(*) as c FROM users');
+  if (existing[0].c === 0) {
+    const hash = await bcrypt.hash('admin', 10);
+    await pool.execute('INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)', ['Administrator', 'admin@helpdesk.local', hash, 'admin']);
+    console.log('  → Admin erstellt');
+  } else {
+    console.log('  → Admin existiert bereits');
+  }
+  await pool.end();
+})().catch(e => console.error('  → Fehler:', e.message));
+" 2>&1
+
+echo ""
+echo -e "  ${BOLD}Standard-Zugangsdaten:${NC}"
+echo -e "    E-Mail:   ${YELLOW}admin@helpdesk.local${NC}"
+echo -e "    Passwort: ${YELLOW}admin${NC}"
+echo -e "    ${RED}Bitte nach dem ersten Login ändern!${NC}"
+echo ""
 echo -e "  ${BOLD}Datenbank:${NC} ${DB_NAME} (root@localhost, kein Passwort)"
 echo ""
