@@ -16,6 +16,7 @@ APP_DIR="/opt/helpdesk"
 DB_NAME="helpdesk"
 DB_USER="root"
 DB_PASS=""
+DB_SOCKET="/var/run/mysqld/mysqld.sock"
 APP_SECRET=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 40)
 NODE_VERSION="20"
 APP_PORT=3000
@@ -90,12 +91,22 @@ cd $APP_DIR
 
 # Create .env.local
 SERVER_IP=$(hostname -I | awk '{print $1}')
+# Detect socket path
+if [ -S /var/run/mysqld/mysqld.sock ]; then
+  DB_SOCKET="/var/run/mysqld/mysqld.sock"
+elif [ -S /tmp/mysql.sock ]; then
+  DB_SOCKET="/tmp/mysql.sock"
+else
+  DB_SOCKET=""
+fi
+
 cat > .env.local <<EOF
 DB_HOST=localhost
 DB_PORT=3306
 DB_NAME=${DB_NAME}
 DB_USER=${DB_USER}
 DB_PASSWORD=${DB_PASS}
+DB_SOCKET=${DB_SOCKET}
 APP_SECRET_KEY=${APP_SECRET}
 APP_URL=http://${SERVER_IP}:${APP_PORT}
 NEXT_PUBLIC_APP_NAME=HelpDesk
@@ -187,7 +198,7 @@ node -e "
 const bcrypt = require('bcryptjs');
 const mysql = require('mysql2/promise');
 (async () => {
-  const pool = mysql.createPool({ host:'localhost', user:'root', password:'', database:'${DB_NAME}' });
+  const pool = mysql.createPool({ socketPath:'${DB_SOCKET}', user:'root', password:'', database:'${DB_NAME}' });
   await pool.execute(\`CREATE TABLE IF NOT EXISTS users (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
