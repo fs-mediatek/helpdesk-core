@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { Server, Database, HardDrive, Loader2, Trash2, Download, RefreshCw } from 'lucide-react'
+import { Server, Database, HardDrive, Loader2, Trash2, Download, RefreshCw, CloudDownload, CheckCircle, AlertTriangle, ArrowUpCircle } from 'lucide-react'
 
 type SystemInfo = {
   appVersion: string
@@ -28,6 +28,7 @@ type DbResult = {
 
 const TABS = [
   { id: 'system', label: 'System', icon: Server },
+  { id: 'update', label: 'Aktualisierung', icon: CloudDownload },
   { id: 'database', label: 'Datenbank', icon: Database },
   { id: 'backups', label: 'Backups', icon: HardDrive },
 ] as const
@@ -404,8 +405,170 @@ export function MaintenancePage({ slug }: { slug: string[] }) {
       </div>
 
       {activeTab === 'system' && <SystemTab />}
+      {activeTab === 'update' && <UpdateTab />}
       {activeTab === 'database' && <DatabaseTab />}
       {activeTab === 'backups' && <BackupsTab />}
+    </div>
+  )
+}
+
+// ── Update Tab ──
+function UpdateTab() {
+  const [checking, setChecking] = useState(false)
+  const [updateInfo, setUpdateInfo] = useState<any>(null)
+  const [updating, setUpdating] = useState(false)
+  const [updateResult, setUpdateResult] = useState<any>(null)
+  const [restarting, setRestarting] = useState(false)
+
+  const checkForUpdates = async () => {
+    setChecking(true); setUpdateInfo(null); setUpdateResult(null)
+    try {
+      const res = await fetch('/api/plugins/system-maintenance/update/check')
+      const data = await res.json()
+      setUpdateInfo(data)
+    } catch (e: any) {
+      setUpdateInfo({ error: e.message, upToDate: true, behind: 0 })
+    } finally { setChecking(false) }
+  }
+
+  useEffect(() => { checkForUpdates() }, [])
+
+  const applyUpdate = async () => {
+    if (!confirm('System wird aktualisiert. Dies kann einige Minuten dauern. Fortfahren?')) return
+    setUpdating(true); setUpdateResult(null)
+    try {
+      const res = await fetch('/api/plugins/system-maintenance/update/apply', { method: 'POST' })
+      const data = await res.json()
+      setUpdateResult(data)
+      if (data.success) setUpdateInfo(null) // clear to re-check
+    } catch (e: any) {
+      setUpdateResult({ success: false, log: [], error: e.message })
+    } finally { setUpdating(false) }
+  }
+
+  const restartService = async () => {
+    setRestarting(true)
+    await fetch('/api/admin/restart', { method: 'POST' }).catch(() => {})
+    setTimeout(() => window.location.reload(), 5000)
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Status card */}
+      <div className="rounded-xl border bg-card p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold flex items-center gap-2">
+            <ArrowUpCircle className="h-5 w-5 text-muted-foreground" />
+            Systemaktualisierung
+          </h3>
+          <button onClick={checkForUpdates} disabled={checking}
+            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50">
+            {checking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Prüfen
+          </button>
+        </div>
+
+        {checking && (
+          <div className="flex items-center gap-3 py-6 justify-center text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-sm">Prüfe auf Updates...</span>
+          </div>
+        )}
+
+        {updateInfo && !checking && (
+          <>
+            {updateInfo.error ? (
+              <div className="flex items-start gap-3 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3">
+                <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-red-500">Fehler bei der Update-Prüfung</p>
+                  <p className="text-xs text-red-400 mt-1">{updateInfo.error}</p>
+                </div>
+              </div>
+            ) : updateInfo.upToDate ? (
+              <div className="flex items-center gap-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-3">
+                <CheckCircle className="h-5 w-5 text-emerald-500 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-emerald-500">System ist aktuell</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Version {updateInfo.currentVersion} · Commit {updateInfo.localCommit}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-start gap-3 rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-3">
+                  <CloudDownload className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-amber-500">Update verfügbar</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {updateInfo.currentVersion} → <strong>{updateInfo.remoteVersion}</strong> · {updateInfo.behind} neue Commits
+                    </p>
+                  </div>
+                </div>
+
+                {/* Commit list */}
+                {updateInfo.commits?.length > 0 && (
+                  <div className="rounded-lg border bg-muted/20 p-3 max-h-48 overflow-y-auto">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Änderungen</p>
+                    <div className="space-y-1">
+                      {updateInfo.commits.map((c: string, i: number) => (
+                        <div key={i} className="flex items-start gap-2 text-xs">
+                          <span className="font-mono text-muted-foreground shrink-0">{c.slice(0, 8)}</span>
+                          <span>{c.slice(9)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <button onClick={applyUpdate} disabled={updating}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors">
+                  {updating ? <><Loader2 className="h-4 w-4 animate-spin" /> Aktualisiere...</> : <><CloudDownload className="h-4 w-4" /> Jetzt aktualisieren</>}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Update result */}
+      {updateResult && (
+        <div className={`rounded-xl border p-5 shadow-sm ${updateResult.success ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+          <div className="flex items-center gap-2 mb-3">
+            {updateResult.success ? <CheckCircle className="h-5 w-5 text-emerald-500" /> : <AlertTriangle className="h-5 w-5 text-red-500" />}
+            <h3 className="font-semibold text-sm">{updateResult.success ? 'Update erfolgreich' : 'Update fehlgeschlagen'}</h3>
+            {updateResult.version && <span className="text-xs font-mono bg-muted px-2 py-0.5 rounded">v{updateResult.version}</span>}
+          </div>
+
+          {/* Log output */}
+          {updateResult.log?.length > 0 && (
+            <div className="rounded-lg bg-black/20 p-3 font-mono text-xs max-h-48 overflow-y-auto space-y-0.5">
+              {updateResult.log.map((line: string, i: number) => (
+                <div key={i} className="text-muted-foreground">{line}</div>
+              ))}
+            </div>
+          )}
+
+          {updateResult.restartRequired && (
+            <div className="mt-4 flex items-center gap-3">
+              <p className="text-sm text-amber-500">Server-Neustart erforderlich</p>
+              <button onClick={restartService} disabled={restarting}
+                className="inline-flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-sm font-medium text-amber-500 hover:bg-amber-500/20 disabled:opacity-50 transition-colors">
+                {restarting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                {restarting ? 'Neustart...' : 'Jetzt neu starten'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Info */}
+      <div className="rounded-lg border bg-muted/20 px-4 py-3 text-xs text-muted-foreground space-y-1">
+        <p>Die Aktualisierung führt folgende Schritte aus:</p>
+        <p>1. <code className="bg-muted px-1 rounded">sudo git pull origin main</code> — Neueste Version herunterladen</p>
+        <p>2. <code className="bg-muted px-1 rounded">npm install</code> — Abhängigkeiten aktualisieren</p>
+        <p>3. <code className="bg-muted px-1 rounded">npx next build</code> — Anwendung neu bauen</p>
+        <p>4. Server-Neustart zum Aktivieren</p>
+      </div>
     </div>
   )
 }

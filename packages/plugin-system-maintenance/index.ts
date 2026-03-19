@@ -2,6 +2,7 @@ import type { HelpdeskPlugin } from '../../src/lib/plugins/types'
 import { NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
+import { execSync } from 'child_process'
 import { MaintenancePage } from './components/MaintenancePage'
 
 const BACKUP_DIR = path.join(process.cwd(), 'backups')
@@ -182,6 +183,82 @@ const plugin: HelpdeskPlugin = {
           'Content-Disposition': `attachment; filename="${safe}"`,
         },
       })
+    },
+
+    // ---- Check for Updates ----
+    'GET /update/check': async (_req, _ctx) => {
+      const appDir = process.cwd()
+      try {
+        // Fetch latest from remote
+        execSync('sudo git fetch origin 2>&1', { cwd: appDir, timeout: 15000 })
+        const local = execSync('git rev-parse HEAD', { cwd: appDir }).toString().trim()
+        const remote = execSync('git rev-parse origin/main', { cwd: appDir }).toString().trim()
+        const behind = execSync('git rev-list HEAD..origin/main --count', { cwd: appDir }).toString().trim()
+        const currentPkg = JSON.parse(fs.readFileSync(path.join(appDir, 'package.json'), 'utf8'))
+
+        let remoteVersion = currentPkg.version
+        try {
+          const remotePkg = execSync('git show origin/main:package.json', { cwd: appDir }).toString()
+          remoteVersion = JSON.parse(remotePkg).version || currentPkg.version
+        } catch {}
+
+        // Recent commits on remote
+        let commits: string[] = []
+        if (parseInt(behind) > 0) {
+          const log = execSync('git log HEAD..origin/main --oneline --max-count=10', { cwd: appDir }).toString().trim()
+          commits = log.split('\n').filter(Boolean)
+        }
+
+        return NextResponse.json({
+          currentVersion: currentPkg.version,
+          remoteVersion,
+          localCommit: local.slice(0, 8),
+          remoteCommit: remote.slice(0, 8),
+          behind: parseInt(behind),
+          upToDate: local === remote,
+          commits,
+        })
+      } catch (err: any) {
+        return NextResponse.json({ error: err.message || 'Git-Fehler', upToDate: true, behind: 0 }, { status: 500 })
+      }
+    },
+
+    // ---- Perform Update ----
+    'POST /update/apply': async (_req, ctx) => {
+      if (!ctx.session.role.includes('admin')) {
+        return NextResponse.json({ error: 'Nur Admins' }, { status: 403 })
+      }
+      const appDir = process.cwd()
+      const log: string[] = []
+      try {
+        // 1. Git pull
+        log.push('Git pull...')
+        const pullResult = execSync('sudo git pull origin main 2>&1', { cwd: appDir, timeout: 30000 }).toString()
+        log.push(pullResult.trim())
+
+        // 2. npm install
+        log.push('Abhängigkeiten aktualisieren...')
+        const npmResult = execSync('npm install --silent 2>&1', { cwd: appDir, timeout: 120000 }).toString()
+        log.push(npmResult.trim() || 'OK')
+
+        // 3. Rebuild
+        log.push('Build...')
+        const buildResult = execSync('npx next build 2>&1', { cwd: appDir, timeout: 180000 }).toString()
+        log.push(buildResult.includes('Ready') || buildResult.includes('Compiled') ? 'Build erfolgreich' : 'Build abgeschlossen')
+
+        // Read new version
+        const newPkg = JSON.parse(fs.readFileSync(path.join(appDir, 'package.json'), 'utf8'))
+
+        return NextResponse.json({
+          success: true,
+          version: newPkg.version,
+          log,
+          restartRequired: true,
+        })
+      } catch (err: any) {
+        log.push(`Fehler: ${err.message}`)
+        return NextResponse.json({ success: false, log, error: err.message }, { status: 500 })
+      }
     },
   },
 
