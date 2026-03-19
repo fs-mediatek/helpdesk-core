@@ -107,7 +107,7 @@ Wants=mariadb.service
 Type=simple
 User=${APP_USER}
 WorkingDirectory=${APP_DIR}
-ExecStart=$(which node) node_modules/.bin/next start -p ${APP_PORT}
+ExecStart=$(which node) node_modules/.bin/next start -p ${APP_PORT} -H 0.0.0.0
 Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
@@ -115,6 +115,11 @@ Environment=NODE_ENV=production
 [Install]
 WantedBy=multi-user.target
 EOF
+
+# Open firewall
+if command -v ufw &>/dev/null; then
+  ufw allow ${APP_PORT}/tcp 2>/dev/null
+fi
 
 systemctl daemon-reload
 systemctl enable helpdesk
