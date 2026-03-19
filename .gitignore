@@ -1,0 +1,8 @@
+node_modules/
+.next/
+.env.local
+uploads/*
+!uploads/.gitkeep
+public/catalog-images/*
+!public/catalog-images/.gitkeep
+*.log
