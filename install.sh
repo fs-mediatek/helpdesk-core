@@ -107,11 +107,12 @@ echo "  → .env.local erstellt"
 npm ci --production=false --silent 2>/dev/null || npm install --silent
 echo "  → Abhängigkeiten installiert"
 
-# Build (ignore errors, fall back to dev mode)
+# Production build
 echo "  → Anwendung wird gebaut (kann 1-2 Min. dauern)..."
-if npx next build 2>&1 | tail -3; then
+npx next build > /tmp/helpdesk-build.log 2>&1
+if [ $? -eq 0 ]; then
   APP_MODE="start"
-  echo "  → Build erfolgreich"
+  echo "  → Build erfolgreich (Produktionsmodus)"
 else
   APP_MODE="dev"
   echo -e "${YELLOW}  → Build fehlgeschlagen, verwende Entwicklungsmodus${NC}"
