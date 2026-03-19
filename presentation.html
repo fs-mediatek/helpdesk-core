@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HelpDesk Core — Produktpräsentation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: #0a0e1a; color: #e8eaed; overflow-x: hidden; }
+
+  /* ── Slides ── */
+  .slide { width: 100vw; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; padding: 60px 80px; overflow: hidden; scroll-snap-align: start; }
+  .slide::before { content: ''; position: absolute; top: -50%; right: -30%; width: 80%; height: 200%; background: radial-gradient(ellipse, rgba(79,70,229,0.06) 0%, transparent 70%); pointer-events: none; }
+  .slide-dark { background: linear-gradient(135deg, #0a0e1a 0%, #111827 50%, #1a1f35 100%); }
+  .slide-accent { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%); }
+  .top-bar { position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #4f46e5, #818cf8, transparent); }
+  .slide-num { position: absolute; bottom: 30px; right: 50px; font-size: 13px; color: #484f58; }
+  .watermark { position: absolute; bottom: 30px; left: 50px; font-size: 12px; color: #30363d; }
+
+  /* ── Typography ── */
+  h1 { font-size: 52px; font-weight: 800; letter-spacing: -2px; line-height: 1.1; }
+  h1 span { color: #818cf8; }
+  h2 { font-size: 36px; font-weight: 700; letter-spacing: -1px; margin-bottom: 16px; }
+  h2::after { content: ''; display: block; width: 50px; height: 4px; background: linear-gradient(90deg, #4f46e5, #818cf8); margin-top: 12px; border-radius: 2px; }
+  h3 { font-size: 22px; font-weight: 600; color: #c9d1d9; }
+  .subtitle { font-size: 20px; color: #8b949e; margin-top: 12px; max-width: 600px; }
+  .tag { display: inline-block; background: rgba(79,70,229,0.15); color: #818cf8; border: 1px solid rgba(79,70,229,0.3); border-radius: 20px; padding: 4px 14px; font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+
+  /* ── Cards ── */
+  .card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 28px; transition: all 0.3s; }
+  .card:hover { border-color: rgba(79,70,229,0.3); transform: translateY(-2px); }
+  .card-icon { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 16px; }
+  .card-title { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+  .card-desc { font-size: 13px; color: #8b949e; line-height: 1.6; }
+
+  /* ── Grids ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; width: 100%; max-width: 1000px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; width: 100%; max-width: 1000px; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; width: 100%; max-width: 1000px; }
+
+  /* ── Feature list ── */
+  .feature-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; }
+  .feature-check { width: 22px; height: 22px; border-radius: 6px; background: rgba(34,197,94,0.15); color: #22c55e; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .feature-cross { width: 22px; height: 22px; border-radius: 6px; background: rgba(239,68,68,0.15); color: #ef4444; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+
+  /* ── Comparison table ── */
+  .comp-table { width: 100%; max-width: 900px; border-collapse: collapse; }
+  .comp-table th { padding: 14px 20px; text-align: left; font-size: 13px; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; border-bottom: 2px solid rgba(255,255,255,0.1); }
+  .comp-table td { padding: 14px 20px; font-size: 14px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .comp-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .comp-table .highlight { color: #818cf8; font-weight: 600; }
+  .comp-table .yes { color: #22c55e; font-weight: 600; }
+  .comp-table .no { color: #ef4444; }
+  .comp-table .partial { color: #f59e0b; }
+
+  /* ── Big number ── */
+  .big-num { font-size: 72px; font-weight: 900; letter-spacing: -3px; background: linear-gradient(135deg, #818cf8, #4f46e5); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+  /* ── Screenshot mockup ── */
+  .mockup { background: #161b22; border: 1px solid #30363d; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5); max-width: 800px; width: 100%; }
+  .mockup-bar { height: 32px; background: #21262d; display: flex; align-items: center; padding: 0 12px; gap: 6px; }
+  .mockup-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .mockup-content { padding: 20px; min-height: 300px; }
+
+  /* ── Navigation ── */
+  .nav-dots { position: fixed; right: 24px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 100; }
+  .nav-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.15); border: none; cursor: pointer; transition: all 0.3s; }
+  .nav-dot.active { background: #818cf8; transform: scale(1.4); }
+
+  /* ── Scroll snap ── */
+  html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+
+  /* ── Print ── */
+  @media print { .nav-dots { display: none; } .slide { page-break-after: always; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style>
+</head>
+<body>
+
+<!-- Navigation dots -->
+<div class="nav-dots" id="navDots"></div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SLIDE 1: Cover -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="slide slide-dark">
+  <div class="top-bar"></div>
+  <div class="tag" style="margin-bottom:24px">Open Source — Self-Hosted — Made in Germany</div>
+  <h1 style="text-align:center"><span>HelpDesk</span> Core</h1>
+  <p class="subtitle" style="text-align:center">Das moderne IT-Support & Asset-Management-System.<br>Tickets, Bestellungen, Onboarding — alles in einer Plattform.</p>
+  <div style="display:flex;gap:30px;margin-top:50px">
+    <div style="text-align:center"><div class="big-num">12+</div><div style="font-size:13px;color:#8b949e">Module</div></div>
+    <div style="width:1px;background:#30363d"></div>
+    <div style="text-align:center"><div class="big-num">50+</div><div style="font-size:13px;color:#8b949e">Funktionen</div></div>
+    <div style="width:1px;background:#30363d"></div>
+    <div style="text-align:center"><div class="big-num">0€</div><div style="font-size:13px;color:#8b949e">Lizenzkosten</div></div>
+  </div>
+  <div class="watermark">HelpDesk Core v1.0</div>
+  <div class="slide-num">1</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SLIDE 2: Problem & Lösung -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="slide slide-dark">
+  <div class="top-bar"></div>
+  <h2>Warum HelpDesk Core?</h2>
+  <div class="grid-2" style="margin-top:30px">
+    <div class="card">
+      <div class="card-icon" style="background:rgba(239,68,68,0.1)">😤</div>
+      <div class="card-title" style="color:#ef4444">Die Herausforderung</div>
+      <div class="card-desc">
+        Teure Lizenzen, komplizierte Systeme, fehlende Integration.<br><br>
+        Bestellungen per Mail, Onboarding auf Papier, Assets in Excel — jede Abteilung hat ihre eigenen Tools.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-icon" style="background:rgba(34,197,94,0.1)">✅</div>
+      <div class="card-title" style="color:#22c55e">Die Lösung</div>
+      <div class="card-desc">
+        <strong>Eine Plattform</strong> für IT-Support, Beschaffung, Asset-Management und Onboarding.<br><br>
+        Selbst gehostet, keine Lizenzkosten, vollständig konfigurierbar.
+      </div>
+    </div>
+  </div>
+  <div class="slide-num">2</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SLIDE 3: Kernmodule -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="slide slide-dark">
+  <div class="top-bar"></div>
+  <h2>Kernmodule</h2>
+  <div class="grid-4" style="margin-top:20px">
+    <div class="card"><div class="card-icon" style="background:rgba(79,70,229,0.1)">🎫</div><div class="card-title">Ticketsystem</div><div class="card-desc">Erstellen, zuweisen, eskalieren. SLA-Überwachung, automatische Benachrichtigungen.</div></div>
+    <div class="card"><div class="card-icon" style="background:rgba(245,158,11,0.1)">🛒</div><div class="card-title">Bestellungen</div><div class="card-desc">Produktkatalog-Shop, Warenkorb, konfigurierbare Genehmigungs-Workflows.</div></div>
+    <div class="card"><div class="card-icon" style="background:rgba(34,197,94,0.1)">🖥️</div><div class="card-title">Assets</div><div class="card-desc">Windows, iOS, Android. Intune CSV-Import, Geräte-Claiming bei Erstanmeldung.</div></div>
+    <div class="card"><div class="card-icon" style="background:rgba(236,72,153,0.1)">👤</div><div class="card-title">Onboarding</div><div class="card-desc">Vollständiger Prozess mit Workflow, Ausstattungsvorschlägen, Ticket-Erstellung.</div></div>
+    <div class="card"><div class="card-icon" style="background:rgba(6,182,212,0.1)">📊</div><div class="card-title">Auswertungen</div><div class="card-desc">KPIs, Agenten-Performance, Präsentations-Reports für die Geschäftsführung.</div></div>
+    <div class="card"><div class="card-icon" style="background:rgba(139,92,246,0.1)">📱</div><div class="card-title">Mobilfunk</div><div class="card-desc">Vertragsverwaltung, Rechnungsabgleich, Kostenstellenauswertung.</div></div>
+    <div class="card"><div class="card-icon" style="background:rgba(20,184,166,0.1)">📚</div><div class="card-title">Wissensdatenbank</div><div class="card-desc">Interne Dokumentation, FAQs, durchsuchbar für alle Mitarbeiter.</div></div>
+    <div class="card"><div class="card-icon" style="background:rgba(251,146,60,0.1)">⚙️</div><div class="card-title">Plugin-System</div><div class="card-desc">Erweiterbares Add-on-System für individuelle Anforderungen.</div></div>
+  </div>
+  <div class="slide-num">3</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SLIDE 4: Workflow-Engine -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="slide slide-dark">
+  <div class="top-bar"></div>
+  <h2>Konfigurierbare Workflows</h2>
+  <p class="subtitle" style="margin-bottom:30px">Jeder Prozess ist individuell anpassbar — für Bestellungen und Onboarding.</p>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Bestellworkflows</div>
+      <div style="margin-top:16px;space-y:8px">
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05)"><span style="background:#22c55e;color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">1</span><span style="font-size:14px">Anfrage eingegangen</span><span style="font-size:11px;color:#818cf8;background:rgba(79,70,229,0.15);padding:2px 8px;border-radius:10px">Kosteneingabe</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05)"><span style="background:#818cf8;color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">2</span><span style="font-size:14px">Genehmigung Führungskraft</span><span style="font-size:11px;color:#f59e0b;background:rgba(245,158,11,0.15);padding:2px 8px;border-radius:10px">Approval</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05)"><span style="background:#30363d;color:#8b949e;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">3</span><span style="font-size:14px">Bestellung aufgeben</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0"><span style="background:#30363d;color:#8b949e;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">4</span><span style="font-size:14px">Asset zuweisen</span><span style="font-size:11px;color:#06b6d4;background:rgba(6,182,212,0.15);padding:2px 8px;border-radius:10px">Asset-Zuweisung</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Features der Workflow-Engine</div>
+      <div style="margin-top:16px">
+        <div class="feature-item"><div class="feature-check">✓</div><div><strong style="font-size:14px">Rollenbasierte Schritte</strong><br><span style="font-size:13px;color:#8b949e">Jeder Schritt wird von definierten Benutzergruppen bearbeitet</span></div></div>
+        <div class="feature-item"><div class="feature-check">✓</div><div><strong style="font-size:14px">Sonderaktionen</strong><br><span style="font-size:13px;color:#8b949e">Kosteneingabe, Genehmigung, Asset-Zuweisung, Zugangscodes</span></div></div>
+        <div class="feature-item"><div class="feature-check">✓</div><div><strong style="font-size:14px">Produktklassen</strong><br><span style="font-size:13px;color:#8b949e">Unterschiedliche Workflows pro Produktkategorie</span></div></div>
+        <div class="feature-item"><div class="feature-check">✓</div><div><strong style="font-size:14px">Gemischte Warenkörbe</strong><br><span style="font-size:13px;color:#8b949e">Automatisch strengster Workflow bei unterschiedlichen Produkten</span></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="slide-num">4</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SLIDE 5: Asset-Management -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="slide slide-dark">
+  <div class="top-bar"></div>
+  <h2>Asset-Management</h2>
+  <div class="grid-3" style="margin-top:20px">
+    <div class="card" style="text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">🪟</div>
+      <div class="card-title">Windows</div>
+      <div class="card-desc">Intune CSV-Import, automatische Benutzer-Zuordnung per E-Mail, 225+ Geräte auf Knopfdruck.</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">🤖</div>
+      <div class="card-title">Android</div>
+      <div class="card-desc">Modell-Auflösung (SM-A145R → Galaxy A14), Mobilfunkvertrag-Matching per Telefonnummer.</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">🍎</div>
+      <div class="card-title">iOS / iPadOS</div>
+      <div class="card-desc">Apple-Geräte verwalten, Seriennummern, Zuweisungen, Garantie-Tracking.</div>
+    </div>
+  </div>
+  <div style="margin-top:30px;max-width:800px;text-align:center">
+    <div class="card">
+      <div class="card-title">Geräteerkennung bei Erstanmeldung</div>
+      <div class="card-desc" style="margin-top:8px">Neue Mitarbeiter werden beim ersten Login gefragt, ob sie die mit ihrer E-Mail verknüpften Geräte übernehmen möchten. Selektive Auswahl möglich.</div>
+    </div>
+  </div>
+  <div class="slide-num">5</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SLIDE 6: Onboarding -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="slide slide-dark">
+  <div class="top-bar"></div>
+  <h2>Onboarding-Prozess</h2>
+  <p class="subtitle" style="margin-bottom:30px">Vom Personalantrag bis zum eingerichteten Arbeitsplatz — ein durchgängiger Prozess.</p>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Schritt 1: Personaldaten</div>
+      <div class="card-desc" style="margin-top:8px">
+        Umfangreiches Formular: Persönliche Daten, Beschäftigung, Organisatorisches, Systemzugänge (StepNova, DATEV, ELO), Ordnerberechtigungen.
+        <br><br>
+        Abteilungsbasierte Vorgesetzte werden automatisch vorgeschlagen. Führungskräfte sehen nur ihren Bereich.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Schritt 2: Ausstattung & Facility</div>
+      <div class="card-desc" style="margin-top:8px">
+        Automatische Vorschläge für technische Ausstattung basierend auf Abteilung und Position.
+        <br><br>
+        Produkte aus dem Katalog, Mengensteuerung, Schlüssel & Transponder.
+        Bei Abschluss: Bestellung + Onboarding-Ticket + Verknüpfung.
+      </div>
+    </div>
+  </div>
+  <div class="slide-num">6</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SLIDE 7: Rollen & Berechtigungen -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="slide slide-dark">
+  <div class="top-bar"></div>
+  <h2>Rollen & Berechtigungen</h2>
+  <div class="grid-2" style="margin-top:20px">
+    <div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">Dynamische Rollen</div>
+        <div class="card-desc" style="margin-top:8px">Beliebig viele Rollen mit Farbcodierung. Systemrollen: Admin, Agent, Benutzer, Disposition, Assistenz, Führungskraft — plus eigene.</div>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">Abteilungs-Vererbung</div>
+        <div class="card-desc" style="margin-top:8px">Rollen werden über Abteilungen vererbt. Sub-Abteilungen erben automatisch die Rollen der Eltern-Abteilung.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Menü-Sichtbarkeit</div>
+        <div class="card-desc" style="margin-top:8px">Jeder Menüpunkt und jedes Add-on kann pro Rolle ein-/ausgeblendet werden. Admins sehen immer alles.</div>
+      </div>
+    </div>
+    <div>
+      <div class="card" style="height:100%;display:flex;flex-direction:column;justify-content:center;text-align:center">
+        <div style="font-size:100px;margin-bottom:20px">🏢</div>
+        <div class="card-title" style="font-size:20px">Hierarchischer Abteilungsbaum</div>
+        <div class="card-desc" style="margin-top:12px;font-size:14px">
+          Verwaltung<br>
+          ├── Personalabteilung<br>
+          ├── Lohn & Gehalt<br>
+          └── Buchhaltung<br><br>
+          IT<br>
+          ├── Systemadministration<br>
+          └── Helpdesk
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="slide-num">7</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SLIDE 8: Vergleich mit Zammad -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="slide slide-accent">
+  <div class="top-bar"></div>
+  <h2>HelpDesk Core vs. Zammad</h2>
+  <table class="comp-table" style="margin-top:20px">
+    <thead>
+      <tr><th>Funktion</th><th>HelpDesk Core</th><th>Zammad</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Ticketsystem</td><td class="yes">✓ Vollständig</td><td class="yes">✓ Vollständig</td></tr>
+      <tr><td>Bestellworkflows / Procurement</td><td class="yes">✓ Inkl. Genehmigungsprozess</td><td class="no">✗ Nicht vorhanden</td></tr>
+      <tr><td>Produktkatalog / Shop</td><td class="yes">✓ Mit Warenkorb</td><td class="no">✗ Nicht vorhanden</td></tr>
+      <tr><td>Asset-Management</td><td class="yes">✓ Multi-Plattform + CSV-Import</td><td class="no">✗ Nicht vorhanden</td></tr>
+      <tr><td>On-/Offboarding</td><td class="yes">✓ Vollständiger Workflow</td><td class="no">✗ Nicht vorhanden</td></tr>
+      <tr><td>Mobilfunkvertragsverwaltung</td><td class="yes">✓ Mit Rechnungsabgleich</td><td class="no">✗ Nicht vorhanden</td></tr>
+      <tr><td>SLA mit Eskalationsstufen</td><td class="yes">✓ Konfigurierbar</td><td class="partial">◐ Nur SLA-Basis</td></tr>
+      <tr><td>Rollenbasierte Menüsteuerung</td><td class="yes">✓ Pro Menüpunkt + Add-on</td><td class="partial">◐ Nur Gruppen</td></tr>
+      <tr><td>Abteilungsbaum mit Rollenvererbung</td><td class="yes">✓ Hierarchisch</td><td class="no">✗ Nicht vorhanden</td></tr>
+      <tr><td>Konfigurierbares Nummernformat</td><td class="yes">✓ Frei definierbar</td><td class="no">✗ Fest vorgegeben</td></tr>
+      <tr><td>Präsentations-Reports (PDF/HTML)</td><td class="yes">✓ Slide-Format</td><td class="partial">◐ Nur CSV</td></tr>
+      <tr><td>Plugin-/Add-on-System</td><td class="yes">✓ Erweiterbar</td><td class="partial">◐ Begrenzt</td></tr>
+      <tr><td>Wissensdatenbank</td><td class="yes">✓ Integriert</td><td class="yes">✓ Integriert</td></tr>
+      <tr><td>Self-Service-Portal</td><td class="yes">✓ Für Endbenutzer</td><td class="yes">✓ Vorhanden</td></tr>
+      <tr><td style="font-weight:700">Lizenzkosten</td><td class="highlight" style="font-size:18px">0 € (Open Source)</td><td class="no">Ab 7 €/Agent/Monat</td></tr>
+      <tr><td style="font-weight:700">Systemanforderungen</td><td class="highlight">4 GB RAM, 2 vCPUs</td><td class="no">6+ GB RAM, 4 vCPUs</td></tr>
+    </tbody>
+  </table>
+  <div class="slide-num">8</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SLIDE 9: Einstellungen & Konfiguration -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="slide slide-dark">
+  <div class="top-bar"></div>
+  <h2>Konfiguration ohne Code</h2>
+  <div class="grid-3" style="margin-top:20px">
+    <div class="card"><div style="font-size:32px;margin-bottom:10px">🏢</div><div class="card-title">Unternehmen</div><div class="card-desc">Firmenname, Anrede (Du/Sie)</div></div>
+    <div class="card"><div style="font-size:32px;margin-bottom:10px">👥</div><div class="card-title">Abteilungen</div><div class="card-desc">Hierarchischer Baum mit Rollenvererbung</div></div>
+    <div class="card"><div style="font-size:32px;margin-bottom:10px">🛡️</div><div class="card-title">Rollen</div><div class="card-desc">Beliebig erstellbar mit Farbauswahl</div></div>
+    <div class="card"><div style="font-size:32px;margin-bottom:10px">#️⃣</div><div class="card-title">Nummerierung</div><div class="card-desc">Ticket- & Bestellnummern frei konfigurierbar</div></div>
+    <div class="card"><div style="font-size:32px;margin-bottom:10px">📧</div><div class="card-title">E-Mail</div><div class="card-desc">SMTP/Gateway, SSL/TLS, Test-Mail</div></div>
+    <div class="card"><div style="font-size:32px;margin-bottom:10px">📋</div><div class="card-title">Menü-Sichtbarkeit</div><div class="card-desc">Matrix: Menüpunkt × Rolle</div></div>
+    <div class="card"><div style="font-size:32px;margin-bottom:10px">⏱️</div><div class="card-title">SLA</div><div class="card-desc">Regeln, Eskalationsstufen, Matching</div></div>
+    <div class="card"><div style="font-size:32px;margin-bottom:10px">🎨</div><div class="card-title">Branding</div><div class="card-desc">Primärfarbe, Logo</div></div>
+    <div class="card"><div style="font-size:32px;margin-bottom:10px">🛒</div><div class="card-title">Produktkatalog</div><div class="card-desc">Verwaltungszugang pro Rolle</div></div>
+  </div>
+  <div class="slide-num">9</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SLIDE 10: Technologie -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="slide slide-dark">
+  <div class="top-bar"></div>
+  <h2>Technologie-Stack</h2>
+  <div class="grid-4" style="margin-top:30px">
+    <div class="card" style="text-align:center"><div style="font-size:36px;margin-bottom:8px">⚡</div><div class="card-title">Next.js 16</div><div class="card-desc">React Server Components, App Router, Turbopack</div></div>
+    <div class="card" style="text-align:center"><div style="font-size:36px;margin-bottom:8px">📘</div><div class="card-title">TypeScript</div><div class="card-desc">Typsicherheit von Frontend bis Backend</div></div>
+    <div class="card" style="text-align:center"><div style="font-size:36px;margin-bottom:8px">🎨</div><div class="card-title">Tailwind CSS v4</div><div class="card-desc">Utility-First, Dark Mode, CSS Variables</div></div>
+    <div class="card" style="text-align:center"><div style="font-size:36px;margin-bottom:8px">🗄️</div><div class="card-title">MariaDB</div><div class="card-desc">Bewährte Datenbank, Auto-Migrations</div></div>
+  </div>
+  <div style="margin-top:30px;display:flex;gap:40px;justify-content:center;color:#8b949e;font-size:13px">
+    <span>JWT Auth</span> · <span>Nodemailer</span> · <span>bcrypt</span> · <span>REST API</span> · <span>Plugin-System</span> · <span>Systemd Service</span>
+  </div>
+  <div class="slide-num">10</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SLIDE 11: Installation -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="slide slide-dark">
+  <div class="top-bar"></div>
+  <h2>Installation in 3 Minuten</h2>
+  <div class="mockup" style="margin-top:30px">
+    <div class="mockup-bar">
+      <div class="mockup-dot" style="background:#ff5f57"></div>
+      <div class="mockup-dot" style="background:#febc2e"></div>
+      <div class="mockup-dot" style="background:#28c840"></div>
+      <span style="margin-left:12px;font-size:12px;color:#8b949e">Terminal</span>
+    </div>
+    <div class="mockup-content" style="font-family:monospace;font-size:14px;line-height:2;color:#c9d1d9">
+      <span style="color:#8b949e">$</span> <span style="color:#79c0ff">git clone</span> https://github.com/your-org/helpdesk-core.git<br>
+      <span style="color:#8b949e">$</span> <span style="color:#79c0ff">cd</span> helpdesk-core<br>
+      <span style="color:#8b949e">$</span> <span style="color:#79c0ff">sudo bash</span> install.sh<br>
+      <br>
+      <span style="color:#3fb950">  ╔══════════════════════════════════════════╗</span><br>
+      <span style="color:#3fb950">  ║   Installation erfolgreich!              ║</span><br>
+      <span style="color:#3fb950">  ╚══════════════════════════════════════════╝</span><br>
+      <br>
+      <span style="color:#8b949e">  →</span> http://10.90.120.50:3000/setup
+    </div>
+  </div>
+  <p style="margin-top:20px;font-size:14px;color:#8b949e">Ubuntu 22.04/24.04 LTS · 4 GB RAM · Webbasierte Ersteinrichtung</p>
+  <div class="slide-num">11</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- SLIDE 12: Closing -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="slide slide-accent" style="text-align:center">
+  <div class="top-bar"></div>
+  <div class="tag" style="margin-bottom:24px">Open Source · Self-Hosted · Made in Germany</div>
+  <h1><span>HelpDesk</span> Core</h1>
+  <p class="subtitle" style="text-align:center;margin-top:16px">Bereit für den produktiven Einsatz.</p>
+  <div style="display:flex;gap:60px;margin-top:50px">
+    <div style="text-align:center"><div style="font-size:56px;font-weight:800;color:#22c55e">✓</div><div style="font-size:13px;color:#8b949e;margin-top:4px">Keine Lizenzkosten</div></div>
+    <div style="text-align:center"><div style="font-size:56px;font-weight:800;color:#818cf8">✓</div><div style="font-size:13px;color:#8b949e;margin-top:4px">Vollständig konfigurierbar</div></div>
+    <div style="text-align:center"><div style="font-size:56px;font-weight:800;color:#f59e0b">✓</div><div style="font-size:13px;color:#8b949e;margin-top:4px">DSGVO-konform (Self-Hosted)</div></div>
+  </div>
+  <div style="margin-top:50px;font-size:14px;color:#8b949e">
+    Fragen? → IT-Abteilung · GitHub: github.com/your-org/helpdesk-core
+  </div>
+  <div class="slide-num">12</div>
+</div>
+
+<script>
+// Navigation dots
+const slides = document.querySelectorAll('.slide');
+const dotsContainer = document.getElementById('navDots');
+slides.forEach((_, i) => {
+  const dot = document.createElement('button');
+  dot.className = 'nav-dot';
+  dot.onclick = () => slides[i].scrollIntoView({ behavior: 'smooth' });
+  dotsContainer.appendChild(dot);
+});
+
+// Highlight active dot
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const idx = [...slides].indexOf(e.target);
+      document.querySelectorAll('.nav-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+    }
+  });
+}, { threshold: 0.5 });
+slides.forEach(s => observer.observe(s));
+
+// Keyboard navigation
+document.addEventListener('keydown', e => {
+  const active = [...document.querySelectorAll('.nav-dot')].findIndex(d => d.classList.contains('active'));
+  if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); if (active < slides.length - 1) slides[active + 1].scrollIntoView({ behavior: 'smooth' }); }
+  if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); if (active > 0) slides[active - 1].scrollIntoView({ behavior: 'smooth' }); }
+});
+</script>
+</body>
+</html>
