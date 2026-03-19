@@ -10,10 +10,23 @@ echo.
 where node >nul 2>&1
 if %errorlevel% neq 0 (
     echo   [FEHLER] Node.js nicht gefunden!
-    echo   Bitte installieren: https://nodejs.org/
     echo.
-    pause
-    exit /b 1
+    echo   Node.js wird automatisch heruntergeladen...
+    echo.
+    powershell -Command "Invoke-WebRequest -Uri 'https://nodejs.org/dist/v20.18.3/node-v20.18.3-x64.msi' -OutFile '%TEMP%\nodejs.msi'"
+    if exist "%TEMP%\nodejs.msi" (
+        echo   Node.js Installer wird gestartet...
+        msiexec /i "%TEMP%\nodejs.msi" /qb
+        echo.
+        echo   [INFO] Bitte dieses Script nach der Installation NEU STARTEN.
+        pause
+        exit /b 0
+    ) else (
+        echo   Download fehlgeschlagen. Bitte manuell installieren:
+        echo   https://nodejs.org/
+        pause
+        exit /b 1
+    )
 )
 
 echo   Node.js:
