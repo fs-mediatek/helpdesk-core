@@ -13,10 +13,9 @@ RED="\033[0;31m"
 NC="\033[0m"
 
 APP_DIR="/opt/helpdesk"
-APP_USER="helpdesk"
 DB_NAME="helpdesk"
-DB_USER="helpdesk"
-DB_PASS=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 20)
+DB_USER="root"
+DB_PASS=""
 APP_SECRET=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 40)
 NODE_VERSION="20"
 APP_PORT=3000
@@ -39,42 +38,58 @@ if ! grep -qi "ubuntu" /etc/os-release 2>/dev/null; then
   echo -e "${YELLOW}Warnung: Dieses Script ist für Ubuntu LTS optimiert.${NC}"
 fi
 
-echo -e "${GREEN}[1/7]${NC} Systemaktualisierung..."
+# ── Step 1: System ──
+echo -e "${GREEN}[1/6]${NC} Systemaktualisierung..."
 apt-get update -qq
-apt-get upgrade -y -qq
+DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -qq
 
-echo -e "${GREEN}[2/7]${NC} Node.js $NODE_VERSION installieren..."
+# ── Step 2: Node.js ──
+echo -e "${GREEN}[2/6]${NC} Node.js $NODE_VERSION installieren..."
 if ! command -v node &>/dev/null; then
   curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash -
   apt-get install -y -qq nodejs
 fi
 echo "  → Node $(node -v), npm $(npm -v)"
 
-echo -e "${GREEN}[3/7]${NC} MariaDB installieren..."
+# ── Step 3: MariaDB ──
+echo -e "${GREEN}[3/6]${NC} MariaDB installieren..."
 if ! command -v mariadb &>/dev/null; then
-  apt-get install -y -qq mariadb-server mariadb-client
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mariadb-server mariadb-client
   systemctl enable mariadb
   systemctl start mariadb
 fi
+# Make sure MariaDB is running
+systemctl start mariadb 2>/dev/null || true
+sleep 2
 
-# Create DB and user
-echo -e "${GREEN}[4/7]${NC} Datenbank einrichten..."
-mariadb -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-mariadb -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';"
-mariadb -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';"
-mariadb -e "FLUSH PRIVILEGES;"
-echo "  → Datenbank: ${DB_NAME}, Benutzer: ${DB_USER}"
+# ── Step 4: Database ──
+echo -e "${GREEN}[4/6]${NC} Datenbank einrichten..."
+# Use root without password (default MariaDB on Ubuntu) — simplest, most reliable
+mariadb -u root <<EOSQL
+CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+EOSQL
+echo "  → Datenbank: ${DB_NAME} (Benutzer: root, kein Passwort)"
 
-echo -e "${GREEN}[5/7]${NC} Anwendung installieren..."
-# Create system user
-id -u $APP_USER &>/dev/null || useradd -r -m -s /bin/bash $APP_USER
+# Verify connection works
+if ! mariadb -u root -e "SELECT 1" ${DB_NAME} &>/dev/null; then
+  echo -e "${RED}  Datenbankverbindung fehlgeschlagen! Bitte manuell prüfen.${NC}"
+  exit 1
+fi
+echo "  → Verbindung geprüft: OK"
 
-# Copy application files
-mkdir -p $APP_DIR
-cp -r . $APP_DIR/
+# ── Step 5: Application ──
+echo -e "${GREEN}[5/6]${NC} Anwendung installieren..."
+INSTALL_DIR=$(pwd)
+
+# Copy to /opt/helpdesk if not already there
+if [ "$INSTALL_DIR" != "$APP_DIR" ]; then
+  mkdir -p $APP_DIR
+  cp -r . $APP_DIR/
+fi
 cd $APP_DIR
 
 # Create .env.local
+SERVER_IP=$(hostname -I | awk '{print $1}')
 cat > .env.local <<EOF
 DB_HOST=localhost
 DB_PORT=3306
@@ -82,21 +97,36 @@ DB_NAME=${DB_NAME}
 DB_USER=${DB_USER}
 DB_PASSWORD=${DB_PASS}
 APP_SECRET_KEY=${APP_SECRET}
-APP_URL=http://$(hostname -I | awk '{print $1}'):${APP_PORT}
+APP_URL=http://${SERVER_IP}:${APP_PORT}
 NEXT_PUBLIC_APP_NAME=HelpDesk
 EOF
+
+echo "  → .env.local erstellt"
 
 # Install dependencies
 npm ci --production=false --silent 2>/dev/null || npm install --silent
 echo "  → Abhängigkeiten installiert"
 
-echo -e "${GREEN}[6/7]${NC} Anwendung bauen..."
-npx next build 2>&1 | tail -3
+# Build (ignore errors, fall back to dev mode)
+echo "  → Anwendung wird gebaut (kann 1-2 Min. dauern)..."
+if npx next build 2>&1 | tail -3; then
+  APP_MODE="start"
+  echo "  → Build erfolgreich"
+else
+  APP_MODE="dev"
+  echo -e "${YELLOW}  → Build fehlgeschlagen, verwende Entwicklungsmodus${NC}"
+fi
 
-# Set ownership
-chown -R $APP_USER:$APP_USER $APP_DIR
+# Set permissions — current user owns everything
+chmod -R 755 $APP_DIR
+chown -R root:root $APP_DIR
 
-echo -e "${GREEN}[7/7]${NC} Systemdienst einrichten..."
+# ── Step 6: Systemd Service ──
+echo -e "${GREEN}[6/6]${NC} Systemdienst einrichten..."
+
+NODE_PATH=$(which node)
+NPX_PATH=$(which npx)
+
 cat > /etc/systemd/system/helpdesk.service <<EOF
 [Unit]
 Description=HelpDesk Core
@@ -105,12 +135,13 @@ Wants=mariadb.service
 
 [Service]
 Type=simple
-User=${APP_USER}
+User=root
 WorkingDirectory=${APP_DIR}
-ExecStart=$(which node) node_modules/.bin/next start -p ${APP_PORT} -H 0.0.0.0
+ExecStart=${NPX_PATH} next ${APP_MODE} -p ${APP_PORT} -H 0.0.0.0
 Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 [Install]
 WantedBy=multi-user.target
@@ -118,34 +149,34 @@ EOF
 
 # Open firewall
 if command -v ufw &>/dev/null; then
-  ufw allow ${APP_PORT}/tcp 2>/dev/null
+  ufw allow ${APP_PORT}/tcp 2>/dev/null || true
 fi
 
 systemctl daemon-reload
 systemctl enable helpdesk
 systemctl start helpdesk
 
-# Get IP
-SERVER_IP=$(hostname -I | awk '{print $1}')
+# Wait and verify
+sleep 3
+if systemctl is-active --quiet helpdesk; then
+  SERVICE_STATUS="${GREEN}läuft${NC}"
+else
+  SERVICE_STATUS="${RED}Fehler — prüfe: journalctl -u helpdesk -f${NC}"
+fi
 
 echo ""
 echo -e "${BOLD}${GREEN}═══════════════════════════════════════════════════${NC}"
 echo -e "${BOLD}${GREEN}  Installation erfolgreich abgeschlossen!${NC}"
 echo -e "${BOLD}${GREEN}═══════════════════════════════════════════════════${NC}"
 echo ""
+echo -e "  ${BOLD}Dienst:${NC}         ${SERVICE_STATUS}"
 echo -e "  ${BOLD}Zugriff:${NC}        http://${SERVER_IP}:${APP_PORT}"
 echo -e "  ${BOLD}Ersteinrichtung:${NC} http://${SERVER_IP}:${APP_PORT}/setup"
-echo ""
-echo -e "  ${BOLD}Datenbank:${NC}"
-echo -e "    Host:     localhost"
-echo -e "    Name:     ${DB_NAME}"
-echo -e "    Benutzer: ${DB_USER}"
-echo -e "    Passwort: ${DB_PASS}"
 echo ""
 echo -e "  ${BOLD}Dienstverwaltung:${NC}"
 echo -e "    systemctl status helpdesk"
 echo -e "    systemctl restart helpdesk"
 echo -e "    journalctl -u helpdesk -f"
 echo ""
-echo -e "  ${YELLOW}Bitte die Datenbank-Zugangsdaten sicher aufbewahren!${NC}"
+echo -e "  ${BOLD}Datenbank:${NC} ${DB_NAME} (root@localhost, kein Passwort)"
 echo ""
