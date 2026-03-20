@@ -4,9 +4,9 @@ import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import {
   LayoutDashboard, Ticket, ShoppingCart, BookOpen, Users,
-  Settings, MapPin, FileText, Package, Network, UserPlus,
+  Settings, MapPin, FileText, Package, Network, UserPlus, UserMinus,
   ChevronLeft, ChevronRight, Headphones, Puzzle, Truck, GitBranch, LayoutGrid,
-  Monitor, Smartphone, Cpu, Clock,
+  Monitor, Smartphone, Cpu, Clock, BarChart2, Wrench, Building2,
   type LucideIcon
 } from "lucide-react"
 import * as LucideIcons from "lucide-react"
@@ -41,6 +41,24 @@ const coreNavItems: NavItem[] = [
   { key: "kb", href: "/kb", label: "Wissensdatenbank", icon: BookOpen },
   { key: "locations", href: "/locations", label: "Standorte", icon: MapPin },
   { key: "templates", href: "/templates", label: "Vorlagen", icon: FileText },
+  {
+    key: "onboarding", href: "/p/onboarding", label: "On- & Offboarding", icon: UserPlus,
+    children: [
+      { href: "/p/onboarding/onboarding", label: "Onboarding", emoji: "👤" },
+      { href: "/p/onboarding/offboarding", label: "Offboarding", emoji: "👋" },
+      { href: "/p/onboarding/settings", label: "Konfiguration", emoji: "⚙️" },
+    ]
+  },
+  { key: "analytics", href: "/p/ticket-analytics", label: "Auswertungen", icon: BarChart2 },
+  {
+    key: "mobile-contracts", href: "/p/mobile-contracts", label: "Mobilfunk", icon: Smartphone,
+    children: [
+      { href: "/p/mobile-contracts/invoices", label: "Rechnungen", emoji: "📄" },
+      { href: "/p/mobile-contracts/cost-centers", label: "Kostenstellen", emoji: "🏢" },
+      { href: "/p/mobile-contracts/analytics", label: "Auswertung", emoji: "📊" },
+    ]
+  },
+  { key: "maintenance", href: "/p/system-maintenance", label: "Systemwartung", icon: Wrench },
   { key: "plugins", href: "/plugins", label: "Module & Add-ons", icon: Puzzle },
   { key: "users", href: "/users", label: "Benutzer", icon: Users },
   { key: "settings", href: "/settings", label: "Einstellungen", icon: Settings },
@@ -63,31 +81,15 @@ function getIcon(name: string): LucideIcon {
 export function Sidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
-  const [pluginItems, setPluginItems] = useState<PluginNavItem[]>([])
   const [userRoles, setUserRoles] = useState<string[]>([])
   const [navVisibility, setNavVisibility] = useState<Record<string, string>>({})
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/plugins').then(r => r.ok ? r.json() : []),
       fetch('/api/auth/me').then(r => r.ok ? r.json() : null),
       fetch('/api/settings/nav').then(r => r.ok ? r.json() : {}),
-    ]).then(([manifests, me, nav]) => {
-      // Plugins
-      const items: PluginNavItem[] = []
-      for (const m of (manifests as any[])) {
-        for (const n of m.navItems ?? []) {
-          items.push({
-            label: n.label,
-            href: `/p/${m.id}${n.href === '/' ? '' : '/' + n.href.replace(/^\//, '')}`,
-            icon: n.icon,
-            pluginId: m.id,
-          })
-        }
-      }
-      setPluginItems(items)
-
+    ]).then(([me, nav]) => {
       // User roles
       if (me?.role) {
         setUserRoles(me.role.split(",").map((r: string) => r.trim()))
@@ -114,11 +116,6 @@ export function Sidebar() {
   const visibleNavItems = coreNavItems.filter(item => {
     if (item.key === "settings") return isRoleAllowed(item.key, true)
     return isRoleAllowed(item.key)
-  })
-
-  const visiblePluginItems = pluginItems.filter(item => {
-    const key = `plugin_${item.pluginId}`
-    return isRoleAllowed(key)
   })
 
   return (
@@ -192,84 +189,6 @@ export function Sidebar() {
           )
         })}
 
-        {/* Plugin items grouped by plugin */}
-        {ready && visiblePluginItems.length > 0 && (() => {
-          // Group by pluginId
-          const groups: Record<string, PluginNavItem[]> = {}
-          for (const item of visiblePluginItems) {
-            if (!groups[item.pluginId]) groups[item.pluginId] = []
-            groups[item.pluginId].push(item)
-          }
-          const pluginIds = Object.keys(groups)
-
-          if (collapsed) {
-            return <>
-              <div className="border-t my-2" />
-              {visiblePluginItems.filter((_, i) => {
-                // Only show first item per plugin in collapsed mode
-                const g = groups[visiblePluginItems[i].pluginId]
-                return g[0] === visiblePluginItems[i]
-              }).map(item => {
-                const Icon = getIcon(item.icon)
-                const pluginActive = groups[item.pluginId].some(p => pathname === p.href || pathname.startsWith(p.href + "/"))
-                return (
-                  <Link key={item.href} href={item.href} title={item.label}
-                    className={cn("flex items-center justify-center rounded-lg p-2 transition-all duration-150",
-                      pluginActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground")}>
-                    <Icon className="h-4 w-4" />
-                  </Link>
-                )
-              })}
-            </>
-          }
-
-          return <>
-            {!collapsed && pluginIds.length > 0 && (
-              <div className="pt-3 pb-1 px-3">
-                <p className="text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-widest">Add-ons</p>
-              </div>
-            )}
-            {pluginIds.map(pid => {
-              const items = groups[pid]
-              const main = items[0]
-              const children = items.slice(1)
-              const Icon = getIcon(main.icon)
-              const pluginActive = items.some(p => pathname === p.href || pathname.startsWith(p.href + "/"))
-              const mainActive = pathname === main.href || (pathname.startsWith(main.href + "/") && !children.some(c => pathname === c.href || pathname.startsWith(c.href + "/")))
-
-              return (
-                <div key={pid}>
-                  <Link href={main.href}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
-                      pluginActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                    )}>
-                    <Icon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{main.label}</span>
-                  </Link>
-                  {children.length > 0 && pluginActive && (
-                    <div className="ml-5 pl-3 border-l-2 border-muted-foreground/15 space-y-0.5 mt-0.5 mb-1">
-                      {children.map(child => {
-                        const ChildIcon = getIcon(child.icon)
-                        const childActive = pathname === child.href || pathname.startsWith(child.href + "/")
-                        return (
-                          <Link key={child.href} href={child.href}
-                            className={cn(
-                              "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] transition-all duration-150",
-                              childActive ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                            )}>
-                            <ChildIcon className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate">{child.label}</span>
-                          </Link>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </>
-        })()}
       </nav>
 
       {/* Collapse button */}
