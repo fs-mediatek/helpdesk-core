@@ -26,7 +26,7 @@ echo -e "${NC}"
 echo -e "${GREEN}[1/6]${NC} Systemaktualisierung..."
 apt-get update -qq
 DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -qq
-apt-get install -y -qq curl git openssl npm
+apt-get install -y -qq curl git openssl
 
 echo -e "${GREEN}[2/6]${NC} Node.js ${NODE_VERSION} installieren..."
 NEED_NODE=false
