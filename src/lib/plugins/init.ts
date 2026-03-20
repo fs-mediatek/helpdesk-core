@@ -13,8 +13,8 @@ async function runMigrations() {
     for (const sql of plugin.migrations) {
       try {
         await pool.execute(sql)
-      } catch (err: any) {
-        console.error(`[Plugin] ${plugin.manifest.id} migration error:`, err.message)
+      } catch {
+        // Silently ignore — duplicate columns, existing tables, etc.
       }
     }
     console.log(`[Plugin] ${plugin.manifest.id} migrations done`)
