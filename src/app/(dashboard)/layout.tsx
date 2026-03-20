@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Topbar } from "@/components/layout/topbar"
 import { DeviceClaimPrompt } from "@/components/assets/device-claim-prompt"
+import { Chatbot } from "@/components/chat/chatbot"
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession()
@@ -18,6 +19,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </main>
       </div>
       <DeviceClaimPrompt />
+      <Chatbot />
     </div>
   )
 }
