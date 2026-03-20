@@ -360,8 +360,9 @@ const plugin: HelpdeskPlugin = {
       const appDir = process.cwd()
       const log: string[] = []
       try {
-        // 1. Git pull
+        // 1. Discard local changes, then pull
         log.push('Git pull...')
+        execSync('git checkout -- . 2>&1', { cwd: appDir, timeout: 10000 })
         const pullResult = execSync('git pull origin main 2>&1', { cwd: appDir, timeout: 30000 }).toString()
         log.push(pullResult.trim())
 
