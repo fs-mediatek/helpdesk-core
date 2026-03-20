@@ -185,6 +185,83 @@ const plugin: HelpdeskPlugin = {
       })
     },
 
+    // ---- Full SQL Export (for migration) ----
+    'GET /export/sql': async (_req, ctx) => {
+      if (!ctx.session.role.includes('admin')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+      const tables = await ctx.db.query<Record<string, string>>('SHOW TABLES')
+      const dbName = process.env.DB_NAME || 'helpdesk'
+      let sql = `-- HelpDesk Full Export\n-- Date: ${new Date().toISOString()}\n-- Database: ${dbName}\n\nSET FOREIGN_KEY_CHECKS=0;\n\n`
+
+      for (const row of tables) {
+        const table = Object.values(row)[0]
+        try {
+          // Get CREATE TABLE
+          const [createRow] = await ctx.db.query(`SHOW CREATE TABLE \`${table}\``) as any[]
+          const createSql = createRow?.['Create Table'] || createRow?.['Create View']
+          if (createSql) {
+            sql += `DROP TABLE IF EXISTS \`${table}\`;\n${createSql};\n\n`
+          }
+
+          // Get data
+          const rows = await ctx.db.query(`SELECT * FROM \`${table}\``)
+          if ((rows as any[]).length > 0) {
+            const cols = Object.keys((rows as any[])[0])
+            for (const r of rows as any[]) {
+              const vals = cols.map(c => {
+                const v = r[c]
+                if (v === null) return 'NULL'
+                if (typeof v === 'number') return String(v)
+                if (v instanceof Date) return `'${v.toISOString().slice(0, 19).replace('T', ' ')}'`
+                return `'${String(v).replace(/'/g, "\\'").replace(/\\/g, "\\\\")}'`
+              })
+              sql += `INSERT INTO \`${table}\` (\`${cols.join('`,`')}\`) VALUES (${vals.join(',')});\n`
+            }
+            sql += '\n'
+          }
+        } catch {}
+      }
+
+      sql += 'SET FOREIGN_KEY_CHECKS=1;\n'
+
+      const filename = `helpdesk-export-${new Date().toISOString().slice(0, 10)}.sql`
+      return new NextResponse(sql, {
+        headers: {
+          'Content-Type': 'application/sql; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+        },
+      })
+    },
+
+    // ---- Import SQL ----
+    'POST /import/sql': async (req, ctx) => {
+      if (!ctx.session.role.includes('admin')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+      const formData = await req.formData()
+      const file = formData.get('file') as File
+      if (!file) return NextResponse.json({ error: 'Keine Datei' }, { status: 400 })
+
+      const text = await file.text()
+      const statements = text
+        .split(';\n')
+        .map(s => s.trim())
+        .filter(s => s && !s.startsWith('--'))
+
+      let executed = 0
+      let errors = 0
+      for (const stmt of statements) {
+        if (!stmt || stmt.length < 3) continue
+        try {
+          await ctx.db.query(stmt)
+          executed++
+        } catch {
+          errors++
+        }
+      }
+
+      return NextResponse.json({ success: true, executed, errors, total: statements.length })
+    },
+
     // ---- Check for Updates ----
     'GET /update/check': async (_req, _ctx) => {
       const appDir = process.cwd()

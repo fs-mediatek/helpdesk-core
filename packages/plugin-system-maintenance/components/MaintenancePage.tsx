@@ -1,6 +1,6 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
-import { Server, Database, HardDrive, Loader2, Trash2, Download, RefreshCw, CloudDownload, CheckCircle, AlertTriangle, ArrowUpCircle } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Server, Database, HardDrive, Loader2, Trash2, Download, RefreshCw, CloudDownload, CheckCircle, AlertTriangle, ArrowUpCircle, Upload, FolderSync } from 'lucide-react'
 
 type SystemInfo = {
   appVersion: string
@@ -31,6 +31,7 @@ const TABS = [
   { id: 'update', label: 'Aktualisierung', icon: CloudDownload },
   { id: 'database', label: 'Datenbank', icon: Database },
   { id: 'backups', label: 'Backups', icon: HardDrive },
+  { id: 'migration', label: 'Migration', icon: FolderSync },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -408,6 +409,98 @@ export function MaintenancePage({ slug }: { slug: string[] }) {
       {activeTab === 'update' && <UpdateTab />}
       {activeTab === 'database' && <DatabaseTab />}
       {activeTab === 'backups' && <BackupsTab />}
+      {activeTab === 'migration' && <MigrationTab />}
+    </div>
+  )
+}
+
+// ── Migration Tab ──
+function MigrationTab() {
+  const [exporting, setExporting] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<any>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const doExport = async () => {
+    setExporting(true)
+    window.location.href = '/api/plugins/system-maintenance/export/sql'
+    setTimeout(() => setExporting(false), 3000)
+  }
+
+  const doImport = async (file: File) => {
+    if (!file.name.endsWith('.sql')) { setImportResult({ error: 'Nur .sql-Dateien' }); return }
+    if (!confirm('ACHTUNG: Alle bestehenden Daten werden überschrieben! Fortfahren?')) return
+    setImporting(true); setImportResult(null)
+    const form = new FormData()
+    form.append('file', file)
+    try {
+      const res = await fetch('/api/plugins/system-maintenance/import/sql', { method: 'POST', body: form })
+      const data = await res.json()
+      setImportResult(data)
+    } catch (e: any) {
+      setImportResult({ error: e.message })
+    } finally { setImporting(false) }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Export */}
+      <div className="rounded-xl border bg-card p-5 shadow-sm">
+        <h3 className="font-semibold flex items-center gap-2 mb-2">
+          <Download className="h-5 w-5 text-muted-foreground" />
+          Daten exportieren
+        </h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Exportiert die komplette Datenbank als SQL-Datei. Diese kann auf einem neuen System importiert werden.
+        </p>
+        <button onClick={doExport} disabled={exporting}
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors">
+          {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {exporting ? 'Exportiere...' : 'SQL-Export herunterladen'}
+        </button>
+      </div>
+
+      {/* Import */}
+      <div className="rounded-xl border bg-card p-5 shadow-sm">
+        <h3 className="font-semibold flex items-center gap-2 mb-2">
+          <Upload className="h-5 w-5 text-muted-foreground" />
+          Daten importieren
+        </h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Importiert eine SQL-Exportdatei von einem anderen System. Bestehende Tabellen werden überschrieben.
+        </p>
+
+        <div className="flex items-center gap-3">
+          <input ref={fileRef} type="file" accept=".sql" className="hidden"
+            onChange={e => { if (e.target.files?.[0]) doImport(e.target.files[0]) }} />
+          <button onClick={() => fileRef.current?.click()} disabled={importing}
+            className="inline-flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-500 hover:bg-amber-500/20 disabled:opacity-50 transition-colors">
+            {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            {importing ? 'Importiere...' : 'SQL-Datei importieren'}
+          </button>
+        </div>
+
+        {importResult && (
+          <div className={`mt-3 rounded-lg px-4 py-3 text-sm ${importResult.error ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+            {importResult.error ? (
+              <p>Fehler: {importResult.error}</p>
+            ) : (
+              <p>Import abgeschlossen: {importResult.executed} Statements ausgeführt{importResult.errors > 0 ? `, ${importResult.errors} Fehler` : ''}</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Instructions */}
+      <div className="rounded-lg border bg-muted/20 px-5 py-4 text-sm text-muted-foreground space-y-2">
+        <p className="font-medium text-foreground text-xs uppercase tracking-wide">Anleitung: Server-Migration</p>
+        <p><strong>1.</strong> Auf dem alten System: SQL-Export herunterladen</p>
+        <p><strong>2.</strong> Neues System installieren: <code className="bg-muted rounded px-1 py-0.5 text-xs">sudo bash install.sh</code></p>
+        <p><strong>3.</strong> Auf dem neuen System einloggen (admin@helpdesk.local / admin)</p>
+        <p><strong>4.</strong> Systemwartung → Migration → SQL-Datei importieren</p>
+        <p><strong>5.</strong> Server neu starten</p>
+        <p className="text-xs text-muted-foreground/60 mt-2">Uploads und Bilder müssen manuell kopiert werden (Ordner: /opt/helpdesk/uploads, /opt/helpdesk/public/catalog-images)</p>
+      </div>
     </div>
   )
 }
