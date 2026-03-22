@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Send, Lock, User, Calendar, Tag, Forward, X, Loader2 } from "lucide-react"
+import { ArrowLeft, Send, Lock, User, Calendar, Tag, Forward, X, Loader2, Ban, Sparkles, CheckSquare, Plus, Trash2, Pencil } from "lucide-react"
 import Link from "next/link"
 import { formatDistanceToNow, format } from "date-fns"
 import { de } from "date-fns/locale"
@@ -93,6 +93,7 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
   const [status, setStatus] = useState(ticket.status)
   const [assigneeId, setAssigneeId] = useState(ticket.assignee_id?.toString() || "none")
   const [showForward, setShowForward] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
   const isAdmin = session?.role?.includes("admin") || session?.role?.includes("agent")
 
   async function submitComment(e: React.FormEvent) {
@@ -153,7 +154,7 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
         <div className="lg:col-span-2 space-y-5">
           <Card>
             <CardContent className="p-5">
-              <p className="text-sm whitespace-pre-wrap text-foreground/80">{ticket.description}</p>
+              <div className="text-sm text-foreground/80 prose prose-sm dark:prose-invert max-w-none [&_p]:my-1 [&_br]:my-0 break-words overflow-hidden [&_a]:break-all" dangerouslySetInnerHTML={{ __html: ticket.description }} />
               <div className="flex gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground">
                 <span className="flex items-center gap-1"><User className="h-3.5 w-3.5" />{ticket.requester_name}</span>
                 <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{format(new Date(ticket.created_at), "dd.MM.yyyy HH:mm")}</span>
@@ -165,14 +166,14 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
           {/* Comments */}
           <div className="space-y-3">
             {ticket.comments?.map((c: any) => (
-              <div key={c.id} className={`flex gap-3 ${c.is_internal ? "opacity-75" : ""}`}>
+              <div key={c.id} className={`flex gap-3 ${Number(c.is_internal) ? "opacity-75" : ""}`}>
                 <Avatar className="h-8 w-8 shrink-0">
                   <AvatarFallback className="text-xs">{c.author_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <div className={`rounded-xl px-4 py-3 text-sm ${c.is_internal ? "bg-amber-500/10 border border-amber-500/20" : "bg-muted"}`}>
-                    {c.is_internal && <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 text-xs font-medium mb-1.5"><Lock className="h-3 w-3" /> Interne Notiz</div>}
-                    <p className="whitespace-pre-wrap">{c.content}</p>
+                  <div className={`rounded-xl px-4 py-3 text-sm ${Number(c.is_internal) ? "bg-amber-500/10 border border-amber-500/20" : "bg-muted"}`}>
+                    {!!c.is_internal && <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 text-xs font-medium mb-1.5"><Lock className="h-3 w-3" /> Interne Notiz</div>}
+                    <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-1 [&_br]:my-0 break-words overflow-hidden [&_a]:break-all" dangerouslySetInnerHTML={{ __html: c.content }} />
                   </div>
                   <div className="flex items-center gap-2 mt-1 ml-1">
                     <span className="text-xs font-medium">{c.author_name}</span>
@@ -203,8 +204,53 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
                   )}
                   <div className="flex items-center gap-2 ml-auto">
                     {isAdmin && (
+                      <Button type="button" variant="outline" size="sm" disabled={analyzing} onClick={async () => {
+                        setAnalyzing(true)
+                        try {
+                          const res = await fetch("/api/claude", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ ticket_id: ticket.id }),
+                          })
+                          const data = await res.json()
+                          if (!res.ok) alert(`Fehler: ${data.error}`)
+                          else router.refresh()
+                        } catch (err: any) { alert(err.message) }
+                        finally { setAnalyzing(false) }
+                      }}>
+                        {analyzing
+                          ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Analysiere...</>
+                          : <><Sparkles className="h-3.5 w-3.5" /> Claude</>}
+                      </Button>
+                    )}
+                    {isAdmin && (
                       <Button type="button" variant="outline" size="sm" onClick={() => setShowForward(true)}>
                         <Forward className="h-3.5 w-3.5" /> Weiterleiten
+                      </Button>
+                    )}
+                    {isAdmin && (
+                      <Button type="button" variant="outline" size="sm" className="text-destructive hover:bg-destructive/10" onClick={async () => {
+                        const choice = window.confirm(
+                          `Absender "${ticket.requester_email || ticket.requester_name}" auf die Blacklist setzen?\n\nZukünftige Tickets/Mails von diesem Absender werden automatisch gefiltert.`
+                        )
+                        if (!choice) return
+                        const res = await fetch("/api/blacklist", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            sender: ticket.requester_email || "",
+                            subject: "",
+                            ticket_id: ticket.id,
+                          }),
+                        })
+                        const data = await res.json()
+                        if (data.success) {
+                          alert(`"${ticket.requester_email}" wurde zur Blacklist hinzugefügt.`)
+                        } else {
+                          alert(`Fehler: ${data.error}`)
+                        }
+                      }}>
+                        <Ban className="h-3.5 w-3.5" /> Sperren
                       </Button>
                     )}
                     <Button type="submit" size="sm" disabled={submitting || !comment.trim()}>
@@ -265,10 +311,166 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
               </div>
             </CardContent>
           </Card>
+
+          {/* Checklist */}
+          <TicketChecklist ticketId={ticket.id} isAdmin={isAdmin} />
         </div>
       </div>
 
       {showForward && <ForwardModal ticket={ticket} onClose={() => { setShowForward(false); router.refresh() }} />}
     </div>
+  )
+}
+
+function TicketChecklist({ ticketId, isAdmin }: { ticketId: number; isAdmin: boolean }) {
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [newItem, setNewItem] = useState("")
+  const [editId, setEditId] = useState<number | null>(null)
+  const [editText, setEditText] = useState("")
+
+  const load = () => {
+    fetch(`/api/tickets/${ticketId}/checklist`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setItems)
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [ticketId])
+
+  const toggle = async (itemId: number, done: boolean) => {
+    setItems(prev => prev.map(i => i.id === itemId ? { ...i, is_done: done ? 1 : 0 } : i))
+    await fetch(`/api/tickets/${ticketId}/checklist`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ item_id: itemId, is_done: done }),
+    })
+    load()
+  }
+
+  const addItem = async () => {
+    if (!newItem.trim()) return
+    await fetch(`/api/tickets/${ticketId}/checklist`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: newItem.trim() }),
+    })
+    setNewItem("")
+    load()
+  }
+
+  const saveEdit = async (itemId: number) => {
+    if (!editText.trim()) return
+    await fetch(`/api/tickets/${ticketId}/checklist`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ item_id: itemId, content: editText.trim() }),
+    })
+    setEditId(null)
+    load()
+  }
+
+  const deleteItem = async (itemId: number) => {
+    await fetch(`/api/tickets/${ticketId}/checklist`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ item_id: itemId }),
+    })
+    load()
+  }
+
+  const doneCount = items.filter(i => !!Number(i.is_done)).length
+  const totalCount = items.length
+
+  if (loading) return null
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <CheckSquare className="h-3.5 w-3.5" /> Checkliste
+          </CardTitle>
+          {totalCount > 0 && (
+            <span className="text-xs text-muted-foreground">{doneCount}/{totalCount}</span>
+          )}
+        </div>
+        {totalCount > 0 && (
+          <div className="w-full bg-muted rounded-full h-1.5 mt-1">
+            <div
+              className="bg-primary rounded-full h-1.5 transition-all"
+              style={{ width: `${totalCount > 0 ? (doneCount / totalCount) * 100 : 0}%` }}
+            />
+          </div>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-1 pt-0">
+        {items.map(item => (
+          <div key={item.id} className="group flex items-start gap-2 py-1">
+            <button
+              onClick={() => toggle(item.id, !Number(item.is_done))}
+              className={`mt-0.5 shrink-0 h-4 w-4 rounded border transition-colors flex items-center justify-center ${
+                Number(item.is_done)
+                  ? "bg-primary border-primary text-primary-foreground"
+                  : "border-muted-foreground/30 hover:border-primary"
+              }`}
+            >
+              {!!Number(item.is_done) && <svg viewBox="0 0 12 12" className="h-3 w-3"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" fill="none" /></svg>}
+            </button>
+            {editId === item.id ? (
+              <div className="flex-1 flex gap-1">
+                <input
+                  className="flex-1 text-xs rounded border bg-background px-2 py-0.5"
+                  value={editText}
+                  onChange={e => setEditText(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") saveEdit(item.id); if (e.key === "Escape") setEditId(null) }}
+                  autoFocus
+                />
+                <button onClick={() => saveEdit(item.id)} className="text-xs text-primary">OK</button>
+              </div>
+            ) : (
+              <span
+                className={`flex-1 text-xs leading-relaxed ${Number(item.is_done) ? "line-through text-muted-foreground" : ""}`}
+              >
+                {item.content}
+                {item.done_by && Number(item.is_done) && (
+                  <span className="text-[10px] text-muted-foreground ml-1">({item.done_by})</span>
+                )}
+              </span>
+            )}
+            {isAdmin && editId !== item.id && (
+              <div className="opacity-0 group-hover:opacity-100 flex gap-0.5 shrink-0">
+                <button onClick={() => { setEditId(item.id); setEditText(item.content) }} className="p-0.5 text-muted-foreground hover:text-foreground"><Pencil className="h-3 w-3" /></button>
+                <button onClick={() => deleteItem(item.id)} className="p-0.5 text-muted-foreground hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
+              </div>
+            )}
+          </div>
+        ))}
+
+        {/* Add new item */}
+        {isAdmin && (
+          <div className="flex gap-1 pt-1">
+            <input
+              className="flex-1 text-xs rounded border bg-background px-2 py-1"
+              placeholder="Neuen Punkt hinzufügen..."
+              value={newItem}
+              onChange={e => setNewItem(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") addItem() }}
+            />
+            <button
+              onClick={addItem}
+              disabled={!newItem.trim()}
+              className="shrink-0 rounded border px-1.5 py-1 text-muted-foreground hover:text-primary hover:border-primary transition-colors disabled:opacity-30"
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+          </div>
+        )}
+
+        {items.length === 0 && !isAdmin && (
+          <p className="text-xs text-muted-foreground py-2 text-center">Keine Checkliste vorhanden</p>
+        )}
+      </CardContent>
+    </Card>
   )
 }

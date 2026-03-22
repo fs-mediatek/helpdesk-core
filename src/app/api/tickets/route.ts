@@ -17,7 +17,8 @@ export async function GET(req: NextRequest) {
   const params: any[] = []
   const isAdmin = session.role.includes("admin") || session.role.includes("agent") || session.role.includes("disposition")
   if (!isAdmin) { where += " AND t.requester_id = ?"; params.push(session.userId) }
-  if (status) { where += " AND t.status = ?"; params.push(status) }
+  if (status && status !== "all") { where += " AND t.status = ?"; params.push(status) }
+  else if (!status) { where += " AND t.status NOT IN ('closed', 'resolved')" }
   if (priority) { where += " AND t.priority = ?"; params.push(priority) }
   if (search) { where += " AND (t.title LIKE ? OR t.ticket_number LIKE ?)"; params.push(`%${search}%`, `%${search}%`) }
 

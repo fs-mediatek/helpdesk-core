@@ -17,6 +17,7 @@ export default function KBArticlePage({ params }: { params: Promise<{ id: string
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
   const [status, setStatus] = useState("draft")
+  const [tags, setTags] = useState("")
   const [userRoles, setUserRoles] = useState<string[]>([])
 
   const isNew = id === "new"
@@ -42,6 +43,7 @@ export default function KBArticlePage({ params }: { params: Promise<{ id: string
         setTitle(data.title)
         setContent(data.content_html || "")
         setStatus(data.status || "draft")
+        setTags(data.tags || "")
         // Increment view count
         fetch(`/api/kb/${id}/view`, { method: "POST" }).catch(() => {})
       })
@@ -57,7 +59,7 @@ export default function KBArticlePage({ params }: { params: Promise<{ id: string
       const res = await fetch(url, {
         method: isNew ? "POST" : "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, content, status }),
+        body: JSON.stringify({ title, content, status, tags }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -140,22 +142,61 @@ export default function KBArticlePage({ params }: { params: Promise<{ id: string
         )}
       </div>
 
+      {/* Tags input */}
+      {editing && (
+        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border bg-background px-2 py-1.5 min-h-[36px] cursor-text" onClick={() => document.getElementById("tag-input")?.focus()}>
+          {tags.split(",").map(t => t.trim()).filter(Boolean).map((tag, i) => (
+            <span key={i} className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-medium">
+              {tag}
+              <button type="button" className="hover:text-destructive" onClick={() => setTags(tags.split(",").map(t => t.trim()).filter((_, j) => j !== i).join(","))}>×</button>
+            </span>
+          ))}
+          <input
+            id="tag-input"
+            className="flex-1 min-w-[120px] bg-transparent text-sm outline-none"
+            placeholder={tags ? "" : "Tag eingeben + Enter"}
+            onKeyDown={e => {
+              const val = (e.target as HTMLInputElement).value.trim()
+              if ((e.key === "Enter" || e.key === "Tab") && val) {
+                e.preventDefault()
+                const existing = tags.split(",").map(t => t.trim()).filter(Boolean)
+                if (!existing.includes(val)) setTags([...existing, val].join(","))
+                ;(e.target as HTMLInputElement).value = ""
+              }
+              if (e.key === "Backspace" && !val && tags) {
+                const existing = tags.split(",").map(t => t.trim()).filter(Boolean)
+                setTags(existing.slice(0, -1).join(","))
+              }
+            }}
+          />
+        </div>
+      )}
+
       {/* Meta bar */}
       {article && !editing && (
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            <Clock className="h-3.5 w-3.5" />
-            {new Date(article.created_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Eye className="h-3.5 w-3.5" />
-            {article.views || 0} Aufrufe
-          </span>
-          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-            article.status === "published" ? "bg-emerald-500/10 text-emerald-500" : "bg-yellow-500/10 text-yellow-500"
-          }`}>
-            {article.status === "published" ? "Veröffentlicht" : "Entwurf"}
-          </span>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5" />
+              {new Date(article.created_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Eye className="h-3.5 w-3.5" />
+              {article.views || 0} Aufrufe
+            </span>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+              article.status === "published" ? "bg-emerald-500/10 text-emerald-500" : "bg-yellow-500/10 text-yellow-500"
+            }`}>
+              {article.status === "published" ? "Veröffentlicht" : "Entwurf"}
+            </span>
+          </div>
+          {article.tags && (
+            <div className="flex flex-wrap gap-1">
+              {article.tags.split(",").map((t: string) => t.trim()).filter(Boolean).map((tag: string) => (
+                <span key={tag} className="rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-medium">{tag}</span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

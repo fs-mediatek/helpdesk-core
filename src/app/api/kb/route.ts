@@ -18,12 +18,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const { title, content, status } = await req.json()
+  const { title, content, status, tags } = await req.json()
   if (!title?.trim()) return NextResponse.json({ error: "Titel erforderlich" }, { status: 400 })
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + Date.now()
   const [result] = await pool.execute(
-    "INSERT INTO kb_articles (title, slug, content_html, status, author_id) VALUES (?, ?, ?, ?, ?)",
-    [title.trim(), slug, content || "", status || "draft", session.userId]
+    "INSERT INTO kb_articles (title, slug, content_html, status, tags, author_id) VALUES (?, ?, ?, ?, ?, ?)",
+    [title.trim(), slug, content || "", status || "draft", tags || "", session.userId]
   ) as any
   return NextResponse.json({ id: result.insertId }, { status: 201 })
 }

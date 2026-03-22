@@ -1,5 +1,6 @@
 "use client"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -30,6 +31,11 @@ const priorityConfig: Record<string, { label: string; variant: any }> = {
 }
 
 export default function TicketsPage() {
+  return <Suspense><TicketsContent /></Suspense>
+}
+
+function TicketsContent() {
+  const searchParams = useSearchParams()
   const [tickets, setTickets] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -38,6 +44,22 @@ export default function TicketsPage() {
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState({ title: "", description: "", priority: "medium", category: "Sonstiges" })
   const [submitting, setSubmitting] = useState(false)
+
+  // Auto-open dialog from chatbot redirect
+  useEffect(() => {
+    const subject = searchParams.get("subject")
+    const description = searchParams.get("description")
+    if (subject || description) {
+      setForm(f => ({
+        ...f,
+        title: subject || "",
+        description: description || "",
+      }))
+      setShowNew(true)
+      // Clean URL
+      window.history.replaceState({}, "", "/tickets")
+    }
+  }, [searchParams])
 
   const fetchTickets = useCallback(async () => {
     setLoading(true)

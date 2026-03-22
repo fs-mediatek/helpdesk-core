@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Building2, Mail, Palette, Save, Loader2, LayoutGrid, Menu, Check, Shield, Plus, Trash2, X,
-  Hash, Pencil, Users, ChevronLeft, ArrowLeft, UserPlus, Phone
+  Hash, Pencil, Users, ChevronLeft, ArrowLeft, UserPlus, Phone, MessageCircle, Cloud
 } from "lucide-react"
 import { NAV_ITEMS_META } from "@/components/layout/sidebar"
 import { fetchRoles, type RoleDef } from "@/lib/roles"
@@ -18,10 +18,14 @@ const SECTIONS = [
   { id: "roles", label: "Rollen", icon: Shield, desc: "Benutzerrollen hinzufügen und verwalten" },
   { id: "numbering", label: "Nummerierung", icon: Hash, desc: "Format für Ticket- und Bestellnummern" },
   { id: "email", label: "E-Mail-Versand", icon: Mail, desc: "SMTP-Server und Mail-Gateway" },
+  { id: "microsoft365", label: "Microsoft 365", icon: Cloud, desc: "Login, Mail-Abruf und Graph API" },
+  { id: "zammad", label: "Zammad", icon: ArrowLeft, desc: "Ticket-Import und Synchronisation" },
+  { id: "claude", label: "Claude AI", icon: Shield, desc: "KI-gestützte Ticket-Analyse" },
   { id: "nav", label: "Menü-Sichtbarkeit", icon: Menu, desc: "Navigation nach Rolle steuern" },
   { id: "onboarding", label: "Onboarding", icon: UserPlus, desc: "Status, Jobtitel, Maßnahmen und Rufnummern-Prefix", href: "/p/onboarding/settings" },
   { id: "catalog", label: "Produktkatalog", icon: LayoutGrid, desc: "Verwaltungszugang für den Katalog" },
   { id: "branding", label: "Branding", icon: Palette, desc: "Farben und Logo anpassen" },
+  { id: "chatbot", label: "IT-Assistent", icon: MessageCircle, desc: "Chatbot-Begrüßung, Fallback und vordefinierte Antworten" },
 ]
 
 const ALWAYS_VISIBLE = ["dashboard", "settings"]
@@ -410,6 +414,243 @@ export function SettingsClient({ initialSettings }: { initialSettings: Record<st
     </div>
   )
 
+  // ─── Section: Microsoft 365 ───
+  if (activeSection === "microsoft365") return (
+    <div className="animate-fade-in max-w-2xl">
+      <SectionHeader title="Microsoft 365" desc="Azure AD Login und Mail-Abruf via Graph API" />
+
+      <Card className="mb-4"><CardContent className="pt-6 space-y-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Azure App Registration</p>
+        <div className="space-y-1.5"><Label>Tenant-ID (Verzeichnis-ID)</Label><Input value={settings.ms_tenant_id || ""} onChange={e => set("ms_tenant_id", e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /></div>
+        <div className="space-y-1.5"><Label>Client-ID (Anwendungs-ID)</Label><Input value={settings.ms_client_id || ""} onChange={e => set("ms_client_id", e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /></div>
+        <div className="space-y-1.5"><Label>Client-Secret</Label><Input type="password" value={settings.ms_client_secret || ""} onChange={e => set("ms_client_secret", e.target.value)} placeholder="Geheimnis aus Azure Portal" /></div>
+        <div className="rounded-lg bg-muted/30 border px-3 py-2">
+          <p className="text-xs text-muted-foreground">Callback-URL für die App Registration:</p>
+          <p className="text-xs font-mono mt-1 select-all">{typeof window !== "undefined" ? `${window.location.origin}/api/auth/microsoft/callback` : "/api/auth/microsoft/callback"}</p>
+        </div>
+      </CardContent></Card>
+
+      <Card className="mb-4"><CardContent className="pt-6 space-y-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Anmelden mit Microsoft</p>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => set("ms_login_enabled", settings.ms_login_enabled === "true" ? "false" : "true")} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${settings.ms_login_enabled === "true" ? "bg-primary" : "bg-muted-foreground/20"}`}><span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${settings.ms_login_enabled === "true" ? "translate-x-4.5" : "translate-x-0.5"}`} /></button>
+          <div>
+            <p className="text-sm font-medium">Microsoft-Login auf der Anmeldeseite anzeigen</p>
+            <p className="text-xs text-muted-foreground">Benutzer können sich mit ihrem Microsoft-Konto anmelden. Neue Benutzer werden automatisch angelegt.</p>
+          </div>
+        </div>
+      </CardContent></Card>
+
+      <Card><CardContent className="pt-6 space-y-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mail-Abruf (Postfach → Tickets)</p>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => set("ms_mail_enabled", settings.ms_mail_enabled === "true" ? "false" : "true")} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${settings.ms_mail_enabled === "true" ? "bg-primary" : "bg-muted-foreground/20"}`}><span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${settings.ms_mail_enabled === "true" ? "translate-x-4.5" : "translate-x-0.5"}`} /></button>
+          <div>
+            <p className="text-sm font-medium">Eingehende Mails automatisch zu Tickets verarbeiten</p>
+            <p className="text-xs text-muted-foreground">Ungelesene Mails im Postfach werden alle 60 Sekunden abgerufen.</p>
+          </div>
+        </div>
+        <div className="space-y-1.5"><Label>Überwachtes Postfach</Label><Input value={settings.ms_mailbox || ""} onChange={e => set("ms_mailbox", e.target.value)} placeholder="servicedesk@firma.de" /><p className="text-xs text-muted-foreground">E-Mail-Adresse des Postfachs, das auf neue Mails geprüft wird.</p></div>
+        <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Funktionsweise</p>
+          <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+            <li>Neue Mail → Neues Ticket (Betreff = Titel, Body = Beschreibung)</li>
+            <li>Antwort mit <span className="font-mono">[TIC-2026-0001]</span> im Betreff → Kommentar zum bestehenden Ticket</li>
+            <li>Absender wird als Benutzer angelegt, falls nicht vorhanden</li>
+            <li>Verarbeitete Mails werden als gelesen markiert</li>
+          </ul>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" type="button" onClick={async () => {
+            const res = await fetch("/api/mail-poller", { method: "POST" })
+            const data = await res.json()
+            alert(data.success ? `${data.processed} Mail(s) verarbeitet` : `Fehler: ${data.error}`)
+          }}><Mail className="h-3.5 w-3.5 mr-1.5" /> Jetzt abrufen</Button>
+        </div>
+      </CardContent></Card>
+    </div>
+  )
+
+  // ─── Section: Claude AI ───
+  if (activeSection === "claude") return (
+    <div className="animate-fade-in max-w-2xl">
+      <SectionHeader title="Claude AI" desc="KI-gestützte Ticket-Analyse und Unterstützung für Agents" />
+
+      <Card className="mb-4"><CardContent className="pt-6 space-y-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">API-Verbindung</p>
+        <div className="space-y-1.5">
+          <Label>Anthropic API-Key</Label>
+          <Input type="password" value={settings.claude_api_key || ""} onChange={e => set("claude_api_key", e.target.value)} placeholder="sk-ant-api03-..." />
+          <p className="text-xs text-muted-foreground">Erstellen unter: <a href="https://console.anthropic.com/settings/keys" target="_blank" className="text-primary hover:underline">console.anthropic.com/settings/keys</a></p>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Modell</Label>
+          <select className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" value={settings.claude_model || "claude-sonnet-4-20250514"} onChange={e => set("claude_model", e.target.value)}>
+            <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (schnell, günstig)</option>
+            <option value="claude-opus-4-20250514">Claude Opus 4 (beste Qualität)</option>
+            <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (am günstigsten)</option>
+          </select>
+        </div>
+        <Button variant="outline" size="sm" type="button" id="claude-test-btn" onClick={async () => {
+          const btn = document.getElementById("claude-test-btn") as HTMLButtonElement
+          if (btn) { btn.disabled = true; btn.innerHTML = '<span class="inline-flex items-center gap-2"><span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"></span>Teste...</span>' }
+          await save()
+          const res = await fetch("/api/claude/test", { method: "POST" })
+          const data = await res.json()
+          if (btn) { btn.disabled = false; btn.textContent = "Verbindung testen" }
+          alert(data.ok ? `Verbindung OK! Modell: ${data.model}` : `Fehler: ${data.error}`)
+        }}>Verbindung testen</Button>
+      </CardContent></Card>
+
+      <Card className="mb-4"><CardContent className="pt-6 space-y-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Analyse-Verhalten</p>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => set("claude_enabled", settings.claude_enabled === "true" ? "false" : "true")} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${settings.claude_enabled === "true" ? "bg-primary" : "bg-muted-foreground/20"}`}><span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${settings.claude_enabled === "true" ? "translate-x-4.5" : "translate-x-0.5"}`} /></button>
+          <div>
+            <p className="text-sm font-medium">Claude-Analyse aktivieren</p>
+            <p className="text-xs text-muted-foreground">Zeigt den Analyse-Button in der Ticket-Detailansicht an.</p>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label>System-Prompt</Label>
+          <textarea
+            className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none font-mono"
+            rows={8}
+            value={settings.claude_system_prompt || ""}
+            onChange={e => set("claude_system_prompt", e.target.value)}
+            placeholder={"Du bist ein IT-Support-Assistent. Analysiere das folgende Ticket und erstelle:\n1. Eine kurze Zusammenfassung\n2. Kategorie-Vorschlag\n3. Prioritäts-Einschätzung\n4. Lösungsvorschlag basierend auf der Wissensdatenbank\n5. Empfohlene nächste Schritte für den Agent"}
+          />
+          <p className="text-xs text-muted-foreground">Leer = Standard-Prompt. Wird bei jeder Analyse als Systemnachricht an Claude gesendet.</p>
+        </div>
+      </CardContent></Card>
+
+      <Card><CardContent className="pt-6 space-y-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Funktionsweise</p>
+        <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+          <li>Im Ticket-Detail erscheint ein <strong>"Claude analysieren"</strong>-Button (nur für Admins/Agents)</li>
+          <li>Claude analysiert Betreff, Beschreibung und bisherige Kommentare</li>
+          <li>Die Analyse wird als <strong>interner Kommentar</strong> im Ticket gepostet (nur für Agents sichtbar)</li>
+          <li>KB-Artikel werden automatisch als Kontext mitgegeben</li>
+          <li>Weise einem Benutzer die Rolle <strong>"Claude AI"</strong> zu, um die Kommentare visuell zu kennzeichnen</li>
+        </ul>
+      </CardContent></Card>
+    </div>
+  )
+
+  // ─── Section: Zammad ───
+  if (activeSection === "zammad") return (
+    <div className="animate-fade-in max-w-2xl">
+      <SectionHeader title="Zammad" desc="Ticket-Import und bidirektionale Synchronisation" />
+
+      <Card className="mb-4"><CardContent className="pt-6 space-y-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Verbindung</p>
+        <div className="space-y-1.5"><Label>Zammad-URL</Label><Input value={settings.zammad_url || ""} onChange={e => set("zammad_url", e.target.value)} placeholder="https://support.firma.de" /></div>
+        <div className="space-y-1.5"><Label>API-Token</Label><Input type="password" value={settings.zammad_token || ""} onChange={e => set("zammad_token", e.target.value)} placeholder="Token aus Zammad-Profil" /><p className="text-xs text-muted-foreground">Erstellen unter: Zammad → Profil → Token-Zugriff → Neuer Token (ticket.agent)</p></div>
+        <Button variant="outline" size="sm" type="button" id="zammad-test-btn" onClick={async () => {
+          const btn = document.getElementById("zammad-test-btn") as HTMLButtonElement
+          if (btn) { btn.disabled = true; btn.innerHTML = '<span class="inline-flex items-center gap-2"><span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"></span>Teste...</span>' }
+          await save()
+          const res = await fetch("/api/zammad", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "test" }) })
+          const data = await res.json()
+          if (btn) { btn.disabled = false; btn.textContent = "Verbindung testen" }
+          alert(data.ok ? "Verbindung erfolgreich!" : `Fehler: ${data.error}`)
+        }}>Verbindung testen</Button>
+      </CardContent></Card>
+
+      <Card className="mb-4"><CardContent className="pt-6 space-y-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Automatischer Sync</p>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => set("zammad_enabled", settings.zammad_enabled === "true" ? "false" : "true")} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${settings.zammad_enabled === "true" ? "bg-primary" : "bg-muted-foreground/20"}`}><span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${settings.zammad_enabled === "true" ? "translate-x-4.5" : "translate-x-0.5"}`} /></button>
+          <div>
+            <p className="text-sm font-medium">Automatisch neue Tickets aus Zammad importieren</p>
+            <p className="text-xs text-muted-foreground">Prüft regelmäßig auf neue und geänderte Tickets.</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label>Intervall (Minuten)</Label>
+            <Input type="number" min="1" max="60" value={settings.zammad_interval || "15"} onChange={e => set("zammad_interval", e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Zu importierende Status-IDs</Label>
+            <Input value={settings.zammad_import_states || "1,2,3,8,9"} onChange={e => set("zammad_import_states", e.target.value)} placeholder="1,2,3,8,9" />
+            <p className="text-xs text-muted-foreground">1=new, 2=open, 3=pending, 4=closed, 8=ext. DL, 9=warten</p>
+          </div>
+        </div>
+      </CardContent></Card>
+
+      <Card className="mb-4"><CardContent className="pt-6 space-y-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status-Rücksync</p>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => set("zammad_sync_close", settings.zammad_sync_close === "true" ? "false" : "true")} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${settings.zammad_sync_close === "true" ? "bg-primary" : "bg-muted-foreground/20"}`}><span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${settings.zammad_sync_close === "true" ? "translate-x-4.5" : "translate-x-0.5"}`} /></button>
+          <div>
+            <p className="text-sm font-medium">Statusänderungen an Zammad zurückschreiben</p>
+            <p className="text-xs text-muted-foreground">Wenn ein ZAM-Ticket hier geschlossen wird, wird es auch in Zammad geschlossen.</p>
+          </div>
+        </div>
+      </CardContent></Card>
+
+      <Card className="mb-4"><CardContent className="pt-6 space-y-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Spam-Filter / Blacklist</p>
+        <p className="text-xs text-muted-foreground">Tickets mit diesen Begriffen im Betreff oder von diesen Absendern werden beim Import ignoriert. Ein Eintrag pro Zeile.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label>Betreff-Blacklist</Label>
+            <textarea
+              className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none font-mono"
+              rows={5}
+              value={settings.zammad_blacklist_subjects || ""}
+              onChange={e => set("zammad_blacklist_subjects", e.target.value)}
+              placeholder={"Introducing:\nnewsletter\nUnsubscribe\nAirWire\nExplore UniFi"}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Absender-Blacklist</Label>
+            <textarea
+              className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none font-mono"
+              rows={5}
+              value={settings.zammad_blacklist_senders || ""}
+              onChange={e => set("zammad_blacklist_senders", e.target.value)}
+              placeholder={"noreply@ubiquiti.com\nmarketing@\nnewsletter@"}
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">Groß-/Kleinschreibung wird ignoriert. Teilübereinstimmungen reichen (z.B. "newsletter" matcht auch "Weekly Newsletter").</p>
+      </CardContent></Card>
+
+      <Card><CardContent className="pt-6 space-y-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Manueller Sync</p>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" type="button" id="zammad-sync-btn" onClick={async () => {
+            const btn = document.getElementById("zammad-sync-btn") as HTMLButtonElement
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="inline-flex items-center gap-2"><span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"></span>Synchronisiere...</span>' }
+            await save()
+            const res = await fetch("/api/zammad", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "sync" }) })
+            const data = await res.json()
+            if (btn) { btn.disabled = false; btn.textContent = "Jetzt synchronisieren" }
+            if (data.success) {
+              let msg = `Import: ${data.imported} neue Tickets, ${data.updated} aktualisiert`
+              if (data.filtered) msg += `, ${data.filtered} gefiltert (Blacklist)`
+              if (data.errors?.length) msg += `\n${data.errors.length} Fehler`
+              alert(msg)
+            } else {
+              alert(`Fehler: ${data.error}`)
+            }
+          }}>Jetzt synchronisieren</Button>
+        </div>
+        <div className="rounded-xl border bg-muted/20 p-4 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Funktionsweise</p>
+          <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+            <li>Neue Tickets mit den konfigurierten Status werden importiert (Prefix: <span className="font-mono">ZAM-</span>)</li>
+            <li>Bereits importierte Tickets werden bei Statusänderung in Zammad aktualisiert</li>
+            <li>Bei aktiviertem Rücksync werden Statusänderungen hier an Zammad zurückgeschrieben</li>
+            <li>Benutzer werden automatisch aus Zammad übernommen</li>
+          </ul>
+        </div>
+      </CardContent></Card>
+    </div>
+  )
+
   // ─── Section: Nav visibility ───
   if (activeSection === "nav") return (
     <div className="animate-fade-in max-w-4xl">
@@ -454,5 +695,343 @@ export function SettingsClient({ initialSettings }: { initialSettings: Record<st
     </div>
   )
 
+  // ─── Section: Chatbot ───
+  if (activeSection === "chatbot") return <ChatbotSettings />
+
   return null
+}
+
+function ChatbotSettings() {
+  const [greeting, setGreeting] = useState("")
+  const [fallback, setFallback] = useState("")
+  const [responses, setResponses] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [tab, setTab] = useState<"config" | "logs">("config")
+  const [logs, setLogs] = useState<any>(null)
+  const [logFilter, setLogFilter] = useState("all")
+
+  useEffect(() => {
+    fetch("/api/chat/config")
+      .then(r => r.ok ? r.json() : {})
+      .then(data => {
+        setGreeting(data.greeting || "")
+        setFallback(data.fallback || "")
+        setResponses(data.responses || [])
+      })
+      .finally(() => setLoading(false))
+  }, [])
+
+  const loadLogs = (filter = logFilter) => {
+    fetch(`/api/chat/logs?filter=${filter}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(setLogs)
+      .catch(() => {})
+  }
+
+  useEffect(() => { if (tab === "logs") loadLogs() }, [tab])
+
+  const save = async () => {
+    setSaving(true)
+    setSaved(false)
+    try {
+      await fetch("/api/chat/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ greeting, fallback, responses }),
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch {}
+    setSaving(false)
+  }
+
+  const addResponse = () => {
+    setResponses([...responses, { keywords: "", title: "", answer: "", link: "", active: true }])
+  }
+
+  const updateResponse = (index: number, field: string, value: any) => {
+    setResponses(prev => prev.map((r, i) => i === index ? { ...r, [field]: value } : r))
+  }
+
+  const removeResponse = (index: number) => {
+    setResponses(prev => prev.filter((_, i) => i !== index))
+  }
+
+  if (loading) return <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+
+  const inp = "flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+
+  return (
+    <div className="animate-fade-in max-w-3xl space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">IT-Assistent</h2>
+          <p className="text-sm text-muted-foreground">Chatbot-Texte, Antworten und Anfragen-Analyse</p>
+        </div>
+        {tab === "config" && (
+          <button
+            onClick={save}
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+            {saving ? "Speichere..." : saved ? "Gespeichert" : "Speichern"}
+          </button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 rounded-lg bg-muted p-1">
+        <button onClick={() => setTab("config")} className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${tab === "config" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>Konfiguration</button>
+        <button onClick={() => setTab("logs")} className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${tab === "logs" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>Anfragen-Analyse</button>
+      </div>
+
+      {/* ─── Logs Tab ─── */}
+      {tab === "logs" && (
+        <div className="space-y-5">
+          {!logs ? (
+            <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : (
+            <>
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-xl border bg-card p-4 text-center">
+                  <p className="text-2xl font-bold">{logs.stats?.total || 0}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Anfragen gesamt</p>
+                </div>
+                <div className="rounded-xl border bg-card p-4 text-center">
+                  <p className="text-2xl font-bold text-emerald-500">{logs.stats?.with_results || 0}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Mit Treffer</p>
+                </div>
+                <div className="rounded-xl border bg-card p-4 text-center">
+                  <p className="text-2xl font-bold text-red-500">{logs.stats?.no_results || 0}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Ohne Treffer</p>
+                </div>
+              </div>
+
+              {/* Top unanswered */}
+              {logs.topUnanswered?.length > 0 && (
+                <div className="rounded-xl border bg-card p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium text-sm">Häufigste unbeantwortete Fragen</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">Diese Suchbegriffe haben keine Treffer erzielt — hier lohnt sich ein KB-Artikel oder eine Antwort</p>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    {logs.topUnanswered.map((q: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <span className="text-sm font-medium truncate">{q.search_term}</span>
+                          <span className="shrink-0 rounded-full bg-red-500/10 text-red-500 px-2 py-0.5 text-xs font-medium">{q.count}×</span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => {
+                              setTab("config")
+                              setTimeout(() => {
+                                setResponses(prev => [...prev, { keywords: q.search_term, title: "", answer: "", link: "", active: true }])
+                              }, 100)
+                            }}
+                            className="rounded-md px-2 py-1 text-xs font-medium border hover:bg-accent transition-colors"
+                            title="Antwort erstellen"
+                          >+ Antwort</button>
+                          <a
+                            href={`/kb/new`}
+                            className="rounded-md px-2 py-1 text-xs font-medium border hover:bg-accent transition-colors"
+                            title="KB-Artikel erstellen"
+                          >+ Artikel</a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Top answered */}
+              {logs.topAnswered?.length > 0 && (
+                <div className="rounded-xl border bg-card p-5 space-y-3">
+                  <h3 className="font-medium text-sm">Häufigste beantwortete Fragen</h3>
+                  <div className="space-y-1.5">
+                    {logs.topAnswered.map((q: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 rounded-lg border px-3 py-2">
+                        <span className="text-sm font-medium flex-1 truncate">{q.search_term}</span>
+                        <span className="text-xs text-muted-foreground truncate max-w-[200px]">{q.matched_articles}</span>
+                        <span className="shrink-0 rounded-full bg-emerald-500/10 text-emerald-500 px-2 py-0.5 text-xs font-medium">{q.count}×</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recent log entries */}
+              <div className="rounded-xl border bg-card p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium text-sm">Letzte Anfragen</h3>
+                  <div className="flex items-center gap-2">
+                    <select
+                      className="rounded-lg border bg-background px-2 py-1 text-xs"
+                      value={logFilter}
+                      onChange={e => { setLogFilter(e.target.value); loadLogs(e.target.value) }}
+                    >
+                      <option value="all">Alle</option>
+                      <option value="no_results">Ohne Treffer</option>
+                      <option value="with_results">Mit Treffer</option>
+                    </select>
+                    <button
+                      onClick={() => { if (confirm("Alle Logs löschen?")) fetch("/api/chat/logs", { method: "DELETE" }).then(() => loadLogs()) }}
+                      className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-red-500 border hover:border-red-500/30 transition-colors"
+                    >Logs löschen</button>
+                  </div>
+                </div>
+                <div className="rounded-xl border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b bg-muted/30">
+                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Zeitpunkt</th>
+                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Suchbegriff</th>
+                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Treffer</th>
+                    </tr></thead>
+                    <tbody className="divide-y">
+                      {(logs.logs || []).slice(0, 50).map((log: any) => (
+                        <tr key={log.id} className="hover:bg-muted/20">
+                          <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(log.created_at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
+                          <td className="px-3 py-2 text-sm font-medium">{log.search_term}</td>
+                          <td className="px-3 py-2">
+                            {log.has_results
+                              ? <span className="text-xs text-emerald-500">{log.matched_articles || log.matched_responses || "Ja"}</span>
+                              : <span className="text-xs text-red-500">Kein Treffer</span>
+                            }
+                          </td>
+                        </tr>
+                      ))}
+                      {(!logs.logs || logs.logs.length === 0) && (
+                        <tr><td colSpan={3} className="px-3 py-6 text-center text-sm text-muted-foreground">Noch keine Anfragen protokolliert</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === "config" && <>
+      {/* General Settings */}
+      <div className="rounded-xl border bg-card p-5 space-y-4">
+        <h3 className="font-medium text-sm">Allgemeine Texte</h3>
+        <div className="space-y-1.5">
+          <label className="text-sm text-muted-foreground">Begrüßungstext</label>
+          <textarea
+            className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+            rows={2}
+            value={greeting}
+            onChange={e => setGreeting(e.target.value)}
+            placeholder="Hallo! Ich bin der IT-Assistent. Stelle mir eine Frage..."
+          />
+          <p className="text-xs text-muted-foreground">Wird beim Öffnen des Chatfensters angezeigt. Leer = Standardtext.</p>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm text-muted-foreground">Fallback-Nachricht</label>
+          <textarea
+            className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+            rows={2}
+            value={fallback}
+            onChange={e => setFallback(e.target.value)}
+            placeholder="Leider konnte ich keine passende Lösung finden..."
+          />
+          <p className="text-xs text-muted-foreground">Wird angezeigt, wenn keine Antwort gefunden wurde. Leer = Standardtext.</p>
+        </div>
+      </div>
+
+      {/* Custom Responses */}
+      <div className="rounded-xl border bg-card p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium text-sm">Vordefinierte Antworten</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Werden vor den KB-Artikeln angezeigt, wenn ein Keyword im Suchbegriff vorkommt</p>
+          </div>
+          <button
+            onClick={addResponse}
+            className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-accent transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" /> Antwort
+          </button>
+        </div>
+
+        {responses.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-6">
+            Noch keine vordefinierten Antworten. Klicke auf &quot;+ Antwort&quot; um eine zu erstellen.
+          </p>
+        )}
+
+        <div className="space-y-3">
+          {responses.map((resp, i) => (
+            <div key={i} className={`rounded-lg border p-4 space-y-3 ${resp.active === false ? "opacity-50" : ""}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Keywords (kommagetrennt) *</label>
+                    <input
+                      className={inp}
+                      value={resp.keywords}
+                      onChange={e => updateResponse(i, "keywords", e.target.value)}
+                      placeholder="vpn, fernzugriff, remote"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Titel</label>
+                    <input
+                      className={inp}
+                      value={resp.title}
+                      onChange={e => updateResponse(i, "title", e.target.value)}
+                      placeholder="VPN einrichten"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 mt-4">
+                  <button
+                    onClick={() => updateResponse(i, "active", !resp.active)}
+                    className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                      resp.active !== false ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {resp.active !== false ? "Aktiv" : "Inaktiv"}
+                  </button>
+                  <button
+                    onClick={() => removeResponse(i)}
+                    className="rounded-md p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Antwort *</label>
+                <textarea
+                  className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                  rows={3}
+                  value={resp.answer}
+                  onChange={e => updateResponse(i, "answer", e.target.value)}
+                  placeholder="Um VPN einzurichten, lade den Client unter https://... herunter und..."
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Link (optional)</label>
+                <input
+                  className={inp}
+                  value={resp.link || ""}
+                  onChange={e => updateResponse(i, "link", e.target.value)}
+                  placeholder="https://wiki.intern/vpn oder /kb/5"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      </>}
+    </div>
+  )
 }

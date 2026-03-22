@@ -9,7 +9,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const { id } = await params
   const rows = await query(
-    "SELECT id, title, slug, content_html, status, views, helpful_votes, created_at FROM kb_articles WHERE id = ?",
+    "SELECT id, title, slug, content_html, status, tags, views, helpful_votes, created_at FROM kb_articles WHERE id = ?",
     [id]
   ) as any[]
   if (!rows.length) return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 })
@@ -23,11 +23,11 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   if (!roles.some(r => ["admin", "agent"].includes(r)))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   const { id } = await params
-  const { title, content, status } = await req.json()
+  const { title, content, status, tags } = await req.json()
   if (!title?.trim()) return NextResponse.json({ error: "Titel erforderlich" }, { status: 400 })
   await query(
-    "UPDATE kb_articles SET title = ?, content_html = ?, status = ? WHERE id = ?",
-    [title.trim(), content || "", status || "draft", id]
+    "UPDATE kb_articles SET title = ?, content_html = ?, status = ?, tags = ? WHERE id = ?",
+    [title.trim(), content || "", status || "draft", tags || "", id]
   )
   return NextResponse.json({ success: true })
 }

@@ -9,9 +9,21 @@ const BUILT_IN_ROLES = [
   { name: "disposition", label: "Disposition", color: "bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800", sort_order: 4 },
   { name: "assistenz", label: "Assistenz", color: "bg-purple-500/10 text-purple-600 border-purple-200 dark:border-purple-800", sort_order: 5 },
   { name: "fuehrungskraft", label: "Führungskraft", color: "bg-rose-500/10 text-rose-600 border-rose-200 dark:border-rose-800", sort_order: 6 },
+  { name: "claude", label: "Claude AI", color: "bg-orange-500/10 text-orange-600 border-orange-200 dark:border-orange-800", sort_order: 7 },
 ]
 
 async function ensureColumns() {
+  // Create table if it doesn't exist
+  await pool.execute(`CREATE TABLE IF NOT EXISTS roles (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    label VARCHAR(100) DEFAULT NULL,
+    color VARCHAR(150) DEFAULT NULL,
+    is_builtin TINYINT(1) DEFAULT 0,
+    sort_order INT DEFAULT 100
+  )`).catch(() => {})
+
+  // Add columns in case table existed without them
   const cols: [string, string][] = [
     ["label", "VARCHAR(100) DEFAULT NULL"],
     ["color", "VARCHAR(150) DEFAULT NULL"],

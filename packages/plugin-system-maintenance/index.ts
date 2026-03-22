@@ -75,15 +75,15 @@ const plugin: HelpdeskPlugin = {
       const tables = tableRows.map((row: Record<string, string>) => Object.values(row)[0])
       const results: { table: string; status: string }[] = []
 
+      // CHECK TABLE doesn't work with prepared statements, use pool.query directly
+      const { pool } = await import('@/lib/db')
       for (const table of tables) {
         try {
-          const check = await ctx.db.query<Record<string, unknown>>(
-            `CHECK TABLE \`${table}\``
-          )
-          const row = check[0] ?? {}
+          const [check] = await pool.query(`CHECK TABLE \`${table}\``) as any
+          const row = Array.isArray(check) ? check[0] : check
           results.push({
             table,
-            status: String(row['Msg_text'] ?? row['msg_text'] ?? 'OK'),
+            status: String(row?.['Msg_text'] ?? row?.['msg_text'] ?? 'OK'),
           })
         } catch (err: unknown) {
           results.push({

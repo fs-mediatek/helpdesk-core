@@ -7,7 +7,9 @@ export async function GET() {
   try {
     await pool.execute("SELECT 1")
     dbOk = true
-    // Create users table if not exists
+
+    // ─── Core Tables ───
+
     await pool.execute(`CREATE TABLE IF NOT EXISTS users (
       id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       name VARCHAR(100) NOT NULL,
@@ -19,11 +21,32 @@ export async function GET() {
       active TINYINT(1) DEFAULT 1,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`)
+
     await pool.execute(`CREATE TABLE IF NOT EXISTS settings (
       id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       key_name VARCHAR(100) NOT NULL UNIQUE,
       value TEXT
     )`)
+
+    await pool.execute(`CREATE TABLE IF NOT EXISTS roles (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(50) NOT NULL UNIQUE,
+      label VARCHAR(100) DEFAULT NULL,
+      color VARCHAR(150) DEFAULT NULL,
+      is_builtin TINYINT(1) DEFAULT 0,
+      sort_order INT DEFAULT 100
+    )`)
+
+    await pool.execute(`CREATE TABLE IF NOT EXISTS departments (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(100) NOT NULL UNIQUE,
+      display_name VARCHAR(150) DEFAULT NULL,
+      parent_id INT UNSIGNED DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`)
+
+    // ─── Tickets ───
+
     await pool.execute(`CREATE TABLE IF NOT EXISTS tickets (
       id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       ticket_number VARCHAR(30) NOT NULL UNIQUE,
@@ -37,21 +60,238 @@ export async function GET() {
       sla_due_at TIMESTAMP NULL DEFAULT NULL,
       resolved_at TIMESTAMP NULL DEFAULT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      zammad_id INT UNSIGNED DEFAULT NULL,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )`)
+
     await pool.execute(`CREATE TABLE IF NOT EXISTS ticket_counters (
       year INT PRIMARY KEY,
       last_number INT DEFAULT 0
     )`)
+
     await pool.execute(`CREATE TABLE IF NOT EXISTS ticket_comments (
       id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       ticket_id INT UNSIGNED NOT NULL,
-      user_id INT UNSIGNED NOT NULL,
+      user_id INT UNSIGNED NULL,
       content TEXT NOT NULL,
       is_internal TINYINT(1) DEFAULT 0,
       is_system TINYINT(1) DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`)
+
+    // ─── Assets ───
+
+    await pool.execute(`CREATE TABLE IF NOT EXISTS assets (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      asset_tag VARCHAR(50) UNIQUE,
+      name VARCHAR(255) DEFAULT NULL,
+      type VARCHAR(50) DEFAULT NULL,
+      brand VARCHAR(100) DEFAULT NULL,
+      model VARCHAR(100) DEFAULT NULL,
+      serial_number VARCHAR(100) DEFAULT NULL,
+      status ENUM('available','assigned','maintenance','retired') DEFAULT 'available',
+      assigned_to_user_id INT DEFAULT NULL,
+      purchase_date DATE DEFAULT NULL,
+      warranty_until DATE DEFAULT NULL,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      platform VARCHAR(20) NOT NULL DEFAULT 'other',
+      active TINYINT(1) NOT NULL DEFAULT 1,
+      manufacturer VARCHAR(100) DEFAULT NULL,
+      purchase_price DECIMAL(10,2) DEFAULT NULL,
+      commissioned_at DATE DEFAULT NULL,
+      primary_user_email VARCHAR(255) DEFAULT NULL,
+      os_version VARCHAR(100) DEFAULT NULL,
+      intune_device_id VARCHAR(100) DEFAULT NULL,
+      phone_number VARCHAR(30) DEFAULT NULL,
+      imei VARCHAR(20) DEFAULT NULL,
+      friendly_name VARCHAR(255) DEFAULT NULL
+    )`)
+
+    // ─── Orders ───
+
+    await pool.execute(`CREATE TABLE IF NOT EXISTS orders (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      order_number VARCHAR(30) NOT NULL UNIQUE,
+      title VARCHAR(255) NOT NULL,
+      description TEXT,
+      status VARCHAR(50) DEFAULT 'new',
+      priority VARCHAR(20) DEFAULT 'medium',
+      category VARCHAR(100) DEFAULT NULL,
+      requester_id INT UNSIGNED,
+      assignee_id INT UNSIGNED DEFAULT NULL,
+      workflow_data JSON DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )`)
+
+    await pool.execute(`CREATE TABLE IF NOT EXISTS order_products (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      order_id INT UNSIGNED NOT NULL,
+      product_name VARCHAR(200) NOT NULL,
+      quantity INT DEFAULT 1,
+      unit_price DECIMAL(10,2) DEFAULT NULL,
+      notes TEXT
+    )`)
+
+    await pool.execute(`CREATE TABLE IF NOT EXISTS order_categories (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      description TEXT,
+      workflow JSON DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`)
+
+    // ─── Inventory ───
+
+    await pool.execute(`CREATE TABLE IF NOT EXISTS inventory (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(200) NOT NULL,
+      sku VARCHAR(50) DEFAULT NULL,
+      category VARCHAR(100) DEFAULT NULL,
+      quantity INT DEFAULT 0,
+      min_quantity INT DEFAULT 0,
+      location VARCHAR(100) DEFAULT NULL,
+      supplier_id INT UNSIGNED DEFAULT NULL,
+      unit_price DECIMAL(10,2) DEFAULT NULL,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`)
+
+    // ─── Suppliers ───
+
+    await pool.execute(`CREATE TABLE IF NOT EXISTS suppliers (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(150) NOT NULL,
+      contact_name VARCHAR(100) DEFAULT NULL,
+      contact_email VARCHAR(200) DEFAULT NULL,
+      contact_phone VARCHAR(50) DEFAULT NULL,
+      address VARCHAR(255) DEFAULT NULL,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`)
+
+    // ─── Locations ───
+
+    await pool.execute(`CREATE TABLE IF NOT EXISTS locations (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(150) NOT NULL,
+      slug VARCHAR(150) NOT NULL UNIQUE,
+      address VARCHAR(255) DEFAULT NULL,
+      contact_name VARCHAR(100) DEFAULT NULL,
+      contact_phone VARCHAR(50) DEFAULT NULL,
+      contact_email VARCHAR(200) DEFAULT NULL,
+      notes TEXT,
+      active TINYINT(1) NOT NULL DEFAULT 1,
+      sort_order INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`)
+
+    // ─── Knowledge Base ───
+
+    await pool.execute(`CREATE TABLE IF NOT EXISTS kb_articles (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      slug VARCHAR(255) NOT NULL UNIQUE,
+      content_html LONGTEXT,
+      status ENUM('draft','published') DEFAULT 'draft',
+      tags VARCHAR(500) DEFAULT '',
+      author_id INT UNSIGNED,
+      views INT DEFAULT 0,
+      helpful_votes INT DEFAULT 0,
+      unhelpful_votes INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )`)
+
+    // ─── SLA ───
+
+    await pool.execute(`CREATE TABLE IF NOT EXISTS sla_rules (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      category VARCHAR(100) DEFAULT NULL,
+      department VARCHAR(100) DEFAULT NULL,
+      priority VARCHAR(20) DEFAULT NULL,
+      response_hours INT DEFAULT NULL,
+      resolve_hours INT DEFAULT NULL,
+      active TINYINT(1) DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`)
+
+    // ─── Catalog ───
+
+    await pool.execute(`CREATE TABLE IF NOT EXISTS catalog (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(200) NOT NULL,
+      description TEXT,
+      category VARCHAR(100) DEFAULT NULL,
+      price DECIMAL(10,2) DEFAULT NULL,
+      image_url VARCHAR(500) DEFAULT NULL,
+      active TINYINT(1) DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`)
+
+    // ─── Templates & Workflows ───
+
+    await pool.execute(`CREATE TABLE IF NOT EXISTS templates (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(150) NOT NULL,
+      category VARCHAR(100) DEFAULT NULL,
+      content TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`)
+
+    await pool.execute(`CREATE TABLE IF NOT EXISTS workflows (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(150) NOT NULL,
+      description TEXT,
+      steps JSON DEFAULT NULL,
+      active TINYINT(1) DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`)
+
+    // ─── Notifications ───
+
+    await pool.execute(`CREATE TABLE IF NOT EXISTS notifications (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      user_id INT UNSIGNED NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      message TEXT,
+      is_read TINYINT(1) DEFAULT 0,
+      link VARCHAR(500) DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`)
+
+    // ─── Chatbot ───
+
+    await pool.execute(`CREATE TABLE IF NOT EXISTS chatbot_config (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      config_key VARCHAR(50) NOT NULL UNIQUE,
+      config_value TEXT
+    )`)
+
+    await pool.execute(`CREATE TABLE IF NOT EXISTS chatbot_responses (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      keywords VARCHAR(500) NOT NULL,
+      title VARCHAR(200) NOT NULL,
+      answer TEXT NOT NULL,
+      link VARCHAR(500) DEFAULT NULL,
+      sort_order INT DEFAULT 0,
+      active TINYINT(1) DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`)
+
+    await pool.execute(`CREATE TABLE IF NOT EXISTS chatbot_logs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      search_term VARCHAR(500) NOT NULL,
+      has_results TINYINT(1) DEFAULT 0,
+      matched_articles VARCHAR(500) DEFAULT '',
+      matched_responses VARCHAR(500) DEFAULT '',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`)
+
+    // ─── Check user count ───
+
     const users = await query("SELECT COUNT(*) as c FROM users") as any[]
     hasUsers = (users[0]?.c || 0) > 0
   } catch {}

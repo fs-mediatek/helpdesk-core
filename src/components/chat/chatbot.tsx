@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { MessageCircle, X, Send, ExternalLink } from "lucide-react"
+import { MessageCircle, X, Send, ExternalLink, BookOpen } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface KBArticle {
@@ -10,26 +10,54 @@ interface KBArticle {
   snippet: string
 }
 
+interface CustomResponse {
+  id: number
+  title: string
+  answer: string
+  link?: string
+}
+
 interface ChatMessage {
   role: "bot" | "user"
   text?: string
   articles?: KBArticle[]
+  customResponses?: CustomResponse[]
   actions?: { label: string; action: string }[]
 }
 
+const DEFAULT_GREETING = "Hallo! Ich bin der IT-Assistent. Stelle mir eine Frage und ich suche nach einer Lösung."
+const DEFAULT_FALLBACK = "Leider konnte ich keine passende Lösung finden. Möchtest du ein Ticket erstellen?"
+
 export function Chatbot() {
   const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: "bot",
-      text: "Hallo! Ich bin der IT-Assistent. Stelle mir eine Frage und ich suche in unserer Wissensdatenbank nach einer Lösung.",
-    },
-  ])
+  const [greeting, setGreeting] = useState(DEFAULT_GREETING)
+  const [fallback, setFallback] = useState(DEFAULT_FALLBACK)
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [showDot, setShowDot] = useState(true)
+  const [configLoaded, setConfigLoaded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const firstUserMessage = useRef<string>("")
+
+  // Load config on mount
+  useEffect(() => {
+    fetch("/api/chat/config")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.greeting) setGreeting(data.greeting)
+        if (data?.fallback) setFallback(data.fallback)
+        setConfigLoaded(true)
+      })
+      .catch(() => setConfigLoaded(true))
+  }, [])
+
+  // Set initial message once config is loaded
+  useEffect(() => {
+    if (configLoaded && messages.length === 0) {
+      setMessages([{ role: "bot", text: greeting }])
+    }
+  }, [configLoaded, greeting])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -60,29 +88,47 @@ export function Chatbot() {
       })
       const data = await res.json()
 
-      if (data.articles && data.articles.length > 0) {
-        setMessages((prev) => [
-          ...prev,
-          {
+      const hasCustom = data.customResponses?.length > 0
+      const hasKB = data.articles?.length > 0
+
+      if (hasCustom || hasKB) {
+        const newMessages: ChatMessage[] = []
+
+        // Show custom responses first
+        if (hasCustom) {
+          newMessages.push({
             role: "bot",
-            text: "Ich habe folgende Artikel gefunden:",
+            text: hasKB ? "Dazu habe ich folgende Informationen:" : "Dazu habe ich folgende Informationen:",
+            customResponses: data.customResponses,
+          })
+        }
+
+        // Then KB articles
+        if (hasKB) {
+          newMessages.push({
+            role: "bot",
+            text: hasCustom ? "Zusätzlich aus der Wissensdatenbank:" : "Ich habe folgende Artikel gefunden:",
             articles: data.articles,
-          },
-          {
-            role: "bot",
-            text: "Hat dir eine dieser Antworten geholfen?",
-            actions: [
-              { label: "Ja, danke!", action: "close" },
-              { label: "Nein, Ticket erstellen", action: "ticket" },
-            ],
-          },
-        ])
+          })
+        }
+
+        // Follow-up
+        newMessages.push({
+          role: "bot",
+          text: "Hat dir das weitergeholfen?",
+          actions: [
+            { label: "Ja, danke!", action: "close" },
+            { label: "Nein, Ticket erstellen", action: "ticket" },
+          ],
+        })
+
+        setMessages((prev) => [...prev, ...newMessages])
       } else {
         setMessages((prev) => [
           ...prev,
           {
             role: "bot",
-            text: "Leider konnte ich keine passende Lösung finden. Möchtest du ein Ticket erstellen?",
+            text: fallback,
             actions: [{ label: "Ticket erstellen", action: "ticket" }],
           },
         ])
@@ -179,6 +225,27 @@ export function Chatbot() {
               >
                 {msg.text && <p>{msg.text}</p>}
 
+                {/* Custom Responses */}
+                {msg.customResponses && msg.customResponses.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {msg.customResponses.map((resp) => (
+                      <div key={resp.id} className="rounded-md border bg-background p-2.5">
+                        <p className="font-medium text-sm text-foreground mb-1">{resp.title}</p>
+                        <p className="text-xs text-muted-foreground whitespace-pre-line">{resp.answer}</p>
+                        {resp.link && (
+                          <a
+                            href={resp.link}
+                            target={resp.link.startsWith("http") ? "_blank" : undefined}
+                            className="inline-flex items-center gap-1 mt-1.5 text-xs text-primary hover:underline"
+                          >
+                            <ExternalLink className="h-3 w-3" /> Mehr erfahren
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* KB Article Cards */}
                 {msg.articles && msg.articles.length > 0 && (
                   <div className="mt-2 space-y-2">
@@ -190,7 +257,7 @@ export function Chatbot() {
                       >
                         <div className="flex items-start justify-between gap-1">
                           <span className="font-medium text-sm text-foreground">{article.title}</span>
-                          <ExternalLink className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
+                          <BookOpen className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{article.snippet}</p>
                       </a>

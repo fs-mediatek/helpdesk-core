@@ -53,6 +53,17 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (body.status === "resolved") vals.push(new Date())
   await query(`UPDATE tickets SET ${sets}${body.status === "resolved" ? ", resolved_at = ?" : ""} WHERE id = ?`, [...vals, id])
 
+  // Sync status back to Zammad if it's a ZAM- ticket
+  if (body.status && current && body.status !== current.status) {
+    try {
+      const [ticket] = await query("SELECT ticket_number FROM tickets WHERE id = ?", [id]) as any[]
+      if (ticket?.ticket_number?.startsWith("ZAM-")) {
+        const { syncStatusToZammad } = await import("@/lib/zammad")
+        await syncStatusToZammad(ticket.ticket_number, body.status)
+      }
+    } catch {}
+  }
+
   // Create system comment for status changes so users get notified
   if (body.status && current && body.status !== current.status) {
     await ensureSystemCol()
