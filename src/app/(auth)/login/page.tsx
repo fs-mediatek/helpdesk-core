@@ -141,7 +141,7 @@ function LoginContent() {
         </Card>
 
         <p className="text-center text-xs text-muted-foreground">
-          IT Helpdesk System v2.0
+          IT Helpdesk System v0.9.3
         </p>
       </div>
     </div>
