@@ -116,10 +116,9 @@ const plugin: HelpdeskPlugin = {
       const countResult = await ctx.db.queryOne<{ total: number }>(
         `SELECT COUNT(*) as total FROM mobile_contracts c${where}`, params
       )
-      const paramsFull = [...params, limit, offset]
       const contracts = await ctx.db.query(
-        `SELECT c.* FROM mobile_contracts c${where} ORDER BY c.phone_number ASC LIMIT ? OFFSET ?`,
-        paramsFull
+        `SELECT c.* FROM mobile_contracts c${where} ORDER BY c.phone_number ASC LIMIT ${limit} OFFSET ${offset}`,
+        params
       )
 
       return NextResponse.json({
