@@ -355,6 +355,23 @@ const plugin: HelpdeskPlugin = {
       }
     },
 
+    // ---- Update Log ----
+    'GET /update/log': async (_req, ctx) => {
+      if (!ctx.session.role.includes('admin')) {
+        return NextResponse.json({ error: 'Nur Admins' }, { status: 403 })
+      }
+      const logFile = '/tmp/helpdesk-update.log'
+      try {
+        const content = require('fs').readFileSync(logFile, 'utf-8')
+        const lines = content.split('\n').filter(Boolean)
+        const running = lines.some(l => l.includes('[Update]')) &&
+          !lines.some(l => l.includes('abgeschlossen') || l.includes('FEHLER'))
+        return NextResponse.json({ lines, running })
+      } catch {
+        return NextResponse.json({ lines: [], running: false })
+      }
+    },
+
     // ---- Perform Update ----
     'POST /update/apply': async (_req, ctx) => {
       if (!ctx.session.role.includes('admin')) {
@@ -367,7 +384,9 @@ const plugin: HelpdeskPlugin = {
         return NextResponse.json({ error: 'update.sh nicht gefunden' }, { status: 500 })
       }
 
-      // Launch update script detached — it will stop this service, pull, build, restart
+      // Clear old log, then launch update script detached
+      const logFile = '/tmp/helpdesk-update.log'
+      try { require('fs').writeFileSync(logFile, '') } catch {}
       const { spawn } = require('child_process')
       spawn('bash', [updateScript], {
         detached: true,

@@ -613,6 +613,8 @@ function UpdateTab() {
   const [updating, setUpdating] = useState(false)
   const [updateResult, setUpdateResult] = useState<any>(null)
   const [restarting, setRestarting] = useState(false)
+  const [liveLog, setLiveLog] = useState<string[]>([])
+  const logRef = useRef<HTMLDivElement>(null)
 
   const checkForUpdates = async () => {
     setChecking(true); setUpdateInfo(null); setUpdateResult(null)
@@ -627,17 +629,47 @@ function UpdateTab() {
 
   useEffect(() => { checkForUpdates() }, [])
 
+  // Scroll log to bottom when new lines appear
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
+  }, [liveLog])
+
   const applyUpdate = async () => {
     if (!confirm('System wird aktualisiert. Dies kann einige Minuten dauern. Fortfahren?')) return
-    setUpdating(true); setUpdateResult(null)
+    setUpdating(true); setUpdateResult(null); setLiveLog([])
     try {
       const res = await fetch('/api/plugins/system-maintenance/update/apply', { method: 'POST' })
       const data = await res.json()
-      setUpdateResult(data)
-      if (data.success) setUpdateInfo(null) // clear to re-check
+      if (!data.success) {
+        setUpdateResult(data)
+        setUpdating(false)
+        return
+      }
+      // Poll live log every 3s until done
+      const poll = setInterval(async () => {
+        try {
+          const logRes = await fetch('/api/plugins/system-maintenance/update/log')
+          if (!logRes.ok) return
+          const logData = await logRes.json()
+          setLiveLog(logData.lines || [])
+          const done = (logData.lines || []).some((l: string) =>
+            l.includes('abgeschlossen') || l.includes('FEHLER')
+          )
+          if (done) {
+            clearInterval(poll)
+            setUpdating(false)
+            const failed = (logData.lines || []).some((l: string) => l.includes('FEHLER'))
+            setUpdateResult({ success: !failed, log: logData.lines })
+            if (!failed) setUpdateInfo(null)
+          }
+        } catch {}
+      }, 3000)
+      // Stop polling after 10 minutes max
+      setTimeout(() => { clearInterval(poll); setUpdating(false) }, 600_000)
     } catch (e: any) {
       setUpdateResult({ success: false, log: [], error: e.message })
-    } finally { setUpdating(false) }
+      setUpdating(false)
+    }
   }
 
   const restartService = async () => {
@@ -723,6 +755,21 @@ function UpdateTab() {
           </>
         )}
       </div>
+
+      {/* Live log during update */}
+      {updating && liveLog.length > 0 && (
+        <div className="rounded-xl border bg-black/30 p-4 shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            <span className="text-sm font-semibold">Update läuft...</span>
+          </div>
+          <div ref={logRef} className="font-mono text-xs text-muted-foreground max-h-48 overflow-y-auto space-y-0.5">
+            {liveLog.map((line, i) => (
+              <div key={i}>{line}</div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Update result */}
       {updateResult && (
