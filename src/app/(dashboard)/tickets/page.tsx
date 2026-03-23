@@ -197,24 +197,32 @@ function TicketsContent() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>Neues Ticket erstellen</DialogTitle></DialogHeader>
           <form onSubmit={createTicket} className="space-y-4">
-            {isAssistenz && colleagues.length > 0 && (
+            {isAssistenz && (
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> Im Namen von (optional)</Label>
-                <Select value={form.on_behalf_of} onValueChange={v => setForm(f => ({ ...f, on_behalf_of: v === "self" ? "" : v }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Eigenes Ticket (Standard)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="self">Eigenes Ticket (Standard)</SelectItem>
-                    {colleagues.map((c: any) => (
-                      <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {form.on_behalf_of && (
-                  <p className="text-xs text-violet-600 dark:text-violet-400 flex items-center gap-1">
-                    <Users className="h-3 w-3" />
-                    Du wirst als Stellvertreter im Ticket hinterlegt.
+                {colleagues.length > 0 ? (
+                  <>
+                    <Select value={form.on_behalf_of} onValueChange={v => setForm(f => ({ ...f, on_behalf_of: v === "self" ? "" : v }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Eigenes Ticket (Standard)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="self">Eigenes Ticket (Standard)</SelectItem>
+                        {colleagues.map((c: any) => (
+                          <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {form.on_behalf_of && (
+                      <p className="text-xs text-violet-600 dark:text-violet-400 flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        Du wirst als Stellvertreter im Ticket hinterlegt.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+                    Keine Kollegen in deiner Abteilung gefunden. Bitte stelle sicher, dass dir eine Abteilung zugewiesen ist.
                   </p>
                 )}
               </div>
