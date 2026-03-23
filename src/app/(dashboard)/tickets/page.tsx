@@ -52,7 +52,7 @@ function TicketsContent() {
     fetch("/api/auth/me").then(r => r.ok ? r.json() : null).then(me => {
       if (me?.role?.includes("assistenz")) {
         setIsAssistenz(true)
-        fetch("/api/users/colleagues").then(r => r.json()).then(setColleagues).catch(() => {})
+        fetch("/api/colleagues").then(r => r.json()).then(setColleagues).catch(() => {})
       }
     }).catch(() => {})
   }, [])
