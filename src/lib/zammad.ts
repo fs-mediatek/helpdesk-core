@@ -61,13 +61,20 @@ async function zammadFetch(path: string, options: RequestInit = {}) {
   try {
     res = await fetch(url, fetchOptions)
   } catch (err: any) {
-    // Retry without agent if it fails (e.g. undici doesn't support agent)
+    // Retry via curl if fetch fails (e.g. undici doesn't support agent for TLS skip)
     try {
       const mod = await import("child_process")
-      const result = mod.execSync(
-        `curl -sk -H "Authorization: Token token=${s.zammad_token}" "${url}"`,
-        { encoding: "utf-8", timeout: 30000 }
-      )
+      const method = (options.method || "GET").toUpperCase()
+      const body = options.body ? String(options.body) : null
+      const curlArgs = [
+        "curl", "-sk",
+        "-X", method,
+        "-H", `Authorization: Token token=${s.zammad_token}`,
+        "-H", "Content-Type: application/json",
+        ...(body ? ["-d", body] : []),
+        url,
+      ]
+      const result = mod.execSync(curlArgs.join(" "), { encoding: "utf-8", timeout: 30000 })
       return JSON.parse(result)
     } catch (curlErr: any) {
       throw new Error(`Zammad-Verbindung fehlgeschlagen: ${err.message}`)
