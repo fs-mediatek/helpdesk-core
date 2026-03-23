@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Send, Lock, User, Calendar, Tag, Forward, X, Loader2, Ban, Sparkles, CheckSquare, Plus, Trash2, Pencil } from "lucide-react"
+import { ArrowLeft, Send, Lock, User, Calendar, Tag, Forward, X, Loader2, Ban, Sparkles, CheckSquare, Plus, Trash2, Pencil, Users, TrendingUp, ShieldAlert } from "lucide-react"
 import Link from "next/link"
 import { formatDistanceToNow, format } from "date-fns"
 import { de } from "date-fns/locale"
@@ -91,10 +91,13 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
   const [isInternal, setIsInternal] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [status, setStatus] = useState(ticket.status)
+  const [priority, setPriority] = useState(ticket.priority)
   const [assigneeId, setAssigneeId] = useState(ticket.assignee_id?.toString() || "none")
   const [showForward, setShowForward] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
+  const [removingDelegate, setRemovingDelegate] = useState(false)
   const isAdmin = session?.role?.includes("admin") || session?.role?.includes("agent")
+  const isDelegate = ticket.is_delegate  // current user is the delegate on this ticket
 
   async function submitComment(e: React.FormEvent) {
     e.preventDefault()
@@ -128,6 +131,24 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
       body: JSON.stringify({ assignee_id: userId === "none" ? null : userId }),
     })
     router.refresh()
+  }
+
+  async function escalatePriority(newPriority: string) {
+    setPriority(newPriority)
+    await fetch(`/api/tickets/${ticket.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ priority: newPriority }),
+    })
+    router.refresh()
+  }
+
+  async function removeDelegate() {
+    if (!confirm("Stellvertretung aus diesem Ticket entfernen? Dieser Vorgang kann nicht rückgängig gemacht werden.")) return
+    setRemovingDelegate(true)
+    await fetch(`/api/tickets/${ticket.id}/delegate`, { method: "DELETE" })
+    router.refresh()
+    setRemovingDelegate(false)
   }
 
   const statusInfo = statusConfig[status] || { label: status, variant: "secondary" }
@@ -265,6 +286,53 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
 
         {/* Sidebar */}
         <div className="space-y-4">
+          {/* Stellvertretungs-Banner */}
+          {ticket.delegate_user_id && (
+            <div className={`rounded-xl border p-4 ${isDelegate ? "bg-violet-500/10 border-violet-500/30" : "bg-muted/40 border-border"}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Users className={`h-4 w-4 shrink-0 ${isDelegate ? "text-violet-500" : "text-muted-foreground"}`} />
+                  <div>
+                    <p className={`text-xs font-semibold ${isDelegate ? "text-violet-600 dark:text-violet-400" : "text-muted-foreground"}`}>
+                      {isDelegate ? "Du bist Stellvertreter" : "Stellvertretung"}
+                    </p>
+                    <p className="text-sm font-medium">{ticket.delegate_name}</p>
+                  </div>
+                </div>
+                {ticket.can_remove_delegate && (
+                  <button
+                    onClick={removeDelegate}
+                    disabled={removingDelegate}
+                    className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded"
+                    title="Stellvertretung entfernen (Datenschutz)"
+                  >
+                    {removingDelegate ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                  </button>
+                )}
+              </div>
+              {isDelegate && (
+                <div className="mt-3 pt-3 border-t border-violet-500/20">
+                  <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                    <TrendingUp className="h-3 w-3" /> Priorität eskalieren
+                  </p>
+                  <Select value={priority} onValueChange={escalatePriority}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Niedrig</SelectItem>
+                      <SelectItem value="medium">Mittel</SelectItem>
+                      <SelectItem value="high">
+                        <span className="flex items-center gap-1.5"><ShieldAlert className="h-3.5 w-3.5 text-amber-500" />Hoch</span>
+                      </SelectItem>
+                      <SelectItem value="critical">
+                        <span className="flex items-center gap-1.5"><ShieldAlert className="h-3.5 w-3.5 text-red-500" />Kritisch</span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          )}
+
           <Card>
             <CardHeader className="pb-3"><CardTitle className="text-sm">Details</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm">

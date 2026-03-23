@@ -21,10 +21,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params
   const [ticket] = await query(`
     SELECT t.*, u.name as requester_name, u.email as requester_email,
-           a.name as assignee_name, a.email as assignee_email
+           a.name as assignee_name, a.email as assignee_email,
+           d.name as delegate_name, d.id as delegate_user_id
     FROM tickets t
     LEFT JOIN users u ON t.requester_id = u.id
     LEFT JOIN users a ON t.assignee_id = a.id
+    LEFT JOIN users d ON t.delegate_id = d.id
     WHERE t.id = ?
   `, [id]) as any[]
   if (!ticket) return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 })
@@ -33,7 +35,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     LEFT JOIN users u ON c.user_id = u.id
     WHERE c.ticket_id = ? ORDER BY c.created_at ASC
   `, [id])
-  return NextResponse.json({ ...ticket, comments })
+  return NextResponse.json({
+    ...ticket,
+    comments,
+    is_delegate: ticket.delegate_id != null && ticket.delegate_id === session.userId,
+    can_remove_delegate: ticket.delegate_id != null && (
+      session.role.includes("admin") ||
+      ticket.requester_id === session.userId ||
+      ticket.delegate_id === session.userId
+    ),
+  })
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -41,12 +52,22 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const { id } = await params
   const body = await req.json()
-  const allowed = ["status", "priority", "assignee_id", "title", "description", "category"]
-  const updates = Object.entries(body).filter(([k]) => allowed.includes(k))
-  if (updates.length === 0) return NextResponse.json({ error: "Keine Felder" }, { status: 400 })
+  const isAdmin = session.role.includes("admin") || session.role.includes("agent") || session.role.includes("disposition")
 
-  // Get current ticket state before update
-  const [current] = await query("SELECT status, priority, assignee_id FROM tickets WHERE id = ?", [id]) as any[]
+  // Fetch ticket to check delegate access
+  const [current] = await query("SELECT status, priority, assignee_id, delegate_id, requester_id FROM tickets WHERE id = ?", [id]) as any[]
+  if (!current) return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 })
+
+  const isDelegate = current.delegate_id === session.userId
+  // Delegates can escalate priority; requester can only read (no edit)
+  const allowedFields = isAdmin
+    ? ["status", "priority", "assignee_id", "title", "description", "category"]
+    : isDelegate
+      ? ["priority"]  // delegate can escalate
+      : []
+
+  const updates = Object.entries(body).filter(([k]) => allowedFields.includes(k))
+  if (updates.length === 0) return NextResponse.json({ error: "Keine Felder" }, { status: 400 })
 
   const sets = updates.map(([k]) => `${k} = ?`).join(", ")
   const vals = updates.map(([, v]) => v)

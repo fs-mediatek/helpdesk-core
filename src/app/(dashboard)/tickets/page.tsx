@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect, useCallback, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Search, Filter, Loader2, AlertCircle } from "lucide-react"
+import { Plus, Search, Filter, Loader2, AlertCircle, Users } from "lucide-react"
 import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
 import { de } from "date-fns/locale"
@@ -42,21 +42,28 @@ function TicketsContent() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [priorityFilter, setPriorityFilter] = useState("all")
   const [showNew, setShowNew] = useState(false)
-  const [form, setForm] = useState({ title: "", description: "", priority: "medium", category: "Sonstiges" })
+  const [form, setForm] = useState({ title: "", description: "", priority: "medium", category: "Sonstiges", on_behalf_of: "" })
   const [submitting, setSubmitting] = useState(false)
+  const [isAssistenz, setIsAssistenz] = useState(false)
+  const [colleagues, setColleagues] = useState<any[]>([])
+
+  // Load current user role + colleagues
+  useEffect(() => {
+    fetch("/api/auth/me").then(r => r.ok ? r.json() : null).then(me => {
+      if (me?.role?.includes("assistenz")) {
+        setIsAssistenz(true)
+        fetch("/api/users/colleagues").then(r => r.json()).then(setColleagues).catch(() => {})
+      }
+    }).catch(() => {})
+  }, [])
 
   // Auto-open dialog from chatbot redirect
   useEffect(() => {
     const subject = searchParams.get("subject")
     const description = searchParams.get("description")
     if (subject || description) {
-      setForm(f => ({
-        ...f,
-        title: subject || "",
-        description: description || "",
-      }))
+      setForm(f => ({ ...f, title: subject || "", description: description || "" }))
       setShowNew(true)
-      // Clean URL
       window.history.replaceState({}, "", "/tickets")
     }
   }, [searchParams])
@@ -78,9 +85,11 @@ function TicketsContent() {
   async function createTicket(e: React.FormEvent) {
     e.preventDefault()
     setSubmitting(true)
-    await fetch("/api/tickets", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) })
+    const body: any = { title: form.title, description: form.description, priority: form.priority, category: form.category }
+    if (form.on_behalf_of) body.on_behalf_of = form.on_behalf_of
+    await fetch("/api/tickets", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
     setShowNew(false)
-    setForm({ title: "", description: "", priority: "medium", category: "Sonstiges" })
+    setForm({ title: "", description: "", priority: "medium", category: "Sonstiges", on_behalf_of: "" })
     fetchTickets()
     setSubmitting(false)
   }
@@ -153,10 +162,20 @@ function TicketsContent() {
                   const status = statusConfig[ticket.status] || { label: ticket.status, variant: "secondary" }
                   const priority = priorityConfig[ticket.priority] || { label: ticket.priority, variant: "secondary" }
                   return (
-                    <TableRow key={ticket.id} className="cursor-pointer">
+                    <TableRow
+                      key={ticket.id}
+                      className={`cursor-pointer ${ticket.is_delegate ? "bg-violet-500/5 hover:bg-violet-500/10 border-l-2 border-l-violet-500" : ""}`}
+                    >
                       <TableCell>
                         <Link href={`/tickets/${ticket.id}`} className="block hover:text-primary transition-colors">
-                          <span className="text-xs font-mono text-muted-foreground block">{ticket.ticket_number}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono text-muted-foreground">{ticket.ticket_number}</span>
+                            {ticket.is_delegate && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-medium text-violet-600 dark:text-violet-400">
+                                <Users className="h-2.5 w-2.5" /> Stellvertretung
+                              </span>
+                            )}
+                          </div>
                           <span className="font-medium">{ticket.title}</span>
                         </Link>
                       </TableCell>
@@ -178,6 +197,28 @@ function TicketsContent() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>Neues Ticket erstellen</DialogTitle></DialogHeader>
           <form onSubmit={createTicket} className="space-y-4">
+            {isAssistenz && colleagues.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> Im Namen von (optional)</Label>
+                <Select value={form.on_behalf_of} onValueChange={v => setForm(f => ({ ...f, on_behalf_of: v === "self" ? "" : v }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Eigenes Ticket (Standard)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="self">Eigenes Ticket (Standard)</SelectItem>
+                    {colleagues.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form.on_behalf_of && (
+                  <p className="text-xs text-violet-600 dark:text-violet-400 flex items-center gap-1">
+                    <Users className="h-3 w-3" />
+                    Du wirst als Stellvertreter im Ticket hinterlegt.
+                  </p>
+                )}
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Titel</Label>
               <Input placeholder="Kurze Beschreibung des Problems" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} required />
