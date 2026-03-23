@@ -58,7 +58,7 @@ export async function GET() {
             s.id as supplier_id, s.name as supplier_name, s.website as supplier_website, s.contact_email as supplier_email
      FROM order_products p
      LEFT JOIN order_categories c ON p.category_id = c.id
-     LEFT JOIN inventory_items inv ON p.inventory_item_id = inv.id
+     LEFT JOIN inventory inv ON p.inventory_item_id = inv.id
      LEFT JOIN suppliers s ON p.supplier_id = s.id
      WHERE p.active = 1 ORDER BY p.sort_order, p.name`
   )
