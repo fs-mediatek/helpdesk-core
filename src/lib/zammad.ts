@@ -176,7 +176,7 @@ export async function syncFromZammad(): Promise<{ imported: number; updated: num
             const customer = await zammadFetch(`/users/${t.customer_id}`)
             customerEmail = (customer.email || "").toLowerCase()
             if (customerEmail) {
-              const existingUser = await queryOne<any>("SELECT id FROM users WHERE email = ?", [email])
+              const existingUser = await queryOne<any>("SELECT id FROM users WHERE email = ?", [customerEmail])
               if (existingUser) {
                 requesterId = existingUser.id
               } else {

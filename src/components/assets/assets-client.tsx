@@ -23,26 +23,29 @@ const STATUS_CONFIG: Record<string, { label: string; variant: string }> = {
 const DEVICE_TYPES = ["Laptop", "Desktop", "Smartphone", "Tablet", "Server", "Drucker", "Sonstiges"]
 
 // ─── CSV Parser ───
-function parseCSVLine(line: string): string[] {
+function parseCSVLine(line: string, delimiter: string): string[] {
   const result: string[] = []
   let current = ""
   let inQuotes = false
   for (let i = 0; i < line.length; i++) {
     const ch = line[i]
     if (ch === '"') { inQuotes = !inQuotes; continue }
-    if (ch === ',' && !inQuotes) { result.push(current); current = ""; continue }
+    if (ch === delimiter && !inQuotes) { result.push(current); current = ""; continue }
     current += ch
   }
   result.push(current)
   return result
 }
 function parseCSV(text: string): Record<string, string>[] {
+  // Strip UTF-8 and UTF-16 BOM
   const raw = text.replace(/^\uFEFF/, "")
   const lines = raw.split(/\r?\n/).filter(l => l.trim())
   if (lines.length < 2) return []
-  const headers = parseCSVLine(lines[0])
+  // Auto-detect delimiter: tab or comma
+  const delimiter = lines[0].includes("\t") ? "\t" : ","
+  const headers = parseCSVLine(lines[0], delimiter)
   return lines.slice(1).map(line => {
-    const values = parseCSVLine(line)
+    const values = parseCSVLine(line, delimiter)
     return Object.fromEntries(headers.map((h, i) => [h.trim(), (values[i] || "").trim()]))
   })
 }
@@ -57,16 +60,22 @@ function CsvImportModal({ platform, onClose, onDone }: { platform: string; onClo
 
   const handleFile = (file: File) => {
     setError(null)
-    const reader = new FileReader()
-    reader.onload = (e) => {
+    // Read as binary first to detect encoding
+    const binReader = new FileReader()
+    binReader.onload = (e) => {
       try {
-        const parsed = parseCSV(e.target?.result as string)
+        const buf = e.target?.result as ArrayBuffer
+        const bytes = new Uint8Array(buf)
+        // Detect UTF-16 LE BOM (FF FE)
+        const encoding = bytes[0] === 0xFF && bytes[1] === 0xFE ? "utf-16le" : "utf-8"
+        const text = new TextDecoder(encoding).decode(buf)
+        const parsed = parseCSV(text)
         if (parsed.length === 0) { setError("CSV konnte nicht gelesen werden"); return }
         if (!parsed[0]["Device name"]) { setError("Spalte 'Device name' nicht gefunden. Ist dies ein Intune-Export?"); return }
         setRows(parsed)
       } catch { setError("CSV-Datei konnte nicht verarbeitet werden") }
     }
-    reader.readAsText(file, "utf-8")
+    binReader.readAsArrayBuffer(file)
   }
 
   const handleDrop = (e: React.DragEvent) => {

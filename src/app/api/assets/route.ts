@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
   let sql = `SELECT a.id, a.name, a.asset_tag, a.type, a.platform, a.status,
                     a.model, a.manufacturer, a.serial_number, a.notes,
-                    a.assigned_to_user_id, a.price, a.purchase_price,
+                    a.assigned_to_user_id, a.purchase_price as price, a.purchase_price,
                     a.supplier_id, a.invoice_number, a.commissioned_at,
                     a.primary_user_email, a.os_version, a.intune_device_id,
                     a.purchase_date, a.warranty_until,
