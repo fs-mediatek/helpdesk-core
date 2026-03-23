@@ -1,6 +1,6 @@
 "use client"
 import { useTheme } from "next-themes"
-import { Sun, Moon, Bell, Search, LogOut, Ticket, MessageSquare, X, Trash2, User, Settings, ChevronDown } from "lucide-react"
+import { Sun, Moon, Bell, Search, LogOut, Ticket, MessageSquare, X, Trash2, User, Settings, ChevronDown, UserCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
@@ -124,7 +124,10 @@ function NotificationPanel({ onClose, onCleared }: { onClose: () => void; onClea
   )
 }
 
-export function Topbar({ user }: { user?: { name: string; role: string } }) {
+export function Topbar({ user, impersonating }: {
+  user?: { name: string; role: string }
+  impersonating?: { originalName: string }
+}) {
   const { resolvedTheme, setTheme } = useTheme()
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
@@ -164,16 +167,34 @@ export function Topbar({ user }: { user?: { name: string; role: string } }) {
     router.push("/login")
   }
 
+  async function handleUnimpersonate() {
+    await fetch("/api/auth/unimpersonate", { method: "POST" })
+    router.refresh()
+  }
+
   const initials = user?.name?.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "U"
 
   return (
-    <header className="flex h-14 items-center gap-4 border-b bg-card px-4 lg:px-6">
+    <header className={`flex h-14 items-center gap-4 border-b px-4 lg:px-6 ${impersonating ? "bg-amber-500/10 border-amber-500/30" : "bg-card"}`}>
       <div className="flex flex-1 items-center gap-2">
         <div className="relative w-full max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Suchen..." className="pl-8 bg-background" />
         </div>
       </div>
+
+      {impersonating && (
+        <button
+          onClick={handleUnimpersonate}
+          className="flex items-center gap-2 rounded-lg bg-amber-500/20 border border-amber-500/40 px-3 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-500/30 transition-colors shrink-0"
+          title={`Zurück zu ${impersonating.originalName}`}
+        >
+          <UserCheck className="h-4 w-4" />
+          <span className="hidden sm:inline">Handeln als <strong>{user?.name}</strong> — </span>
+          <span>Zurück zu {impersonating.originalName}</span>
+        </button>
+      )}
+
       <div className="flex items-center gap-1">
         <Button variant="ghost" size="icon" onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
           {mounted ? resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" /> : <span className="h-4 w-4" />}
