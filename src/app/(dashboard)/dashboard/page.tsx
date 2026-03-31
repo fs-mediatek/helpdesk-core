@@ -7,7 +7,7 @@ import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
 import { de } from "date-fns/locale"
 
-const PRIVILEGED_ROLES = ["admin", "agent", "disposition", "assistenz", "fuehrungskraft"]
+const PRIVILEGED_ROLES = ["admin", "agent"]
 
 async function getStats(userId?: number) {
   try {
