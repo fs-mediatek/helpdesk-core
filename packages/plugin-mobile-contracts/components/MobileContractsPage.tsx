@@ -946,7 +946,8 @@ function VertraegeTab() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
-            className="input pl-9 w-56"
+            className="input"
+            style={{ paddingLeft: '2.25rem', width: '14rem' }}
             placeholder="Rufnummer, Nutzer suchen..."
             value={search}
             onChange={e => handleSearch(e.target.value)}
