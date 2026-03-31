@@ -99,15 +99,13 @@ export async function POST(req: NextRequest) {
 
   // Insert into onboarding_requests with type='offboarding'
   const [result] = await pool.execute(
-    `INSERT INTO onboarding_requests (request_number, type, employee_name, employee_email, department, notes, created_by_id, requested_by, status, current_step, last_working_day, exit_reason)
-     VALUES (?, 'offboarding', ?, ?, ?, ?, ?, ?, 'pending', 1, ?, ?)`,
+    `INSERT INTO onboarding_requests (type, employee_name, employee_email, department, notes, created_by_id, status, last_working_day, exit_reason)
+     VALUES ('offboarding', ?, ?, ?, ?, ?, 'pending', ?, ?)`,
     [
-      requestNumber,
       user.name,
       user.email || null,
       user.department || null,
       notes || null,
-      session.userId,
       session.userId,
       last_working_day || null,
       exit_reason || null,
