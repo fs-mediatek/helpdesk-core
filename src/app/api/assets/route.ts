@@ -32,12 +32,17 @@ export async function GET(req: NextRequest) {
                     a.assigned_to_user_id, a.purchase_price as price, a.purchase_price,
                     a.supplier_id, a.invoice_number, a.commissioned_at,
                     a.primary_user_email, a.os_version, a.intune_device_id,
-                    a.purchase_date, a.warranty_until,
+                    a.purchase_date, a.warranty_until, a.phone_number,
                     u.name as assigned_to_name,
-                    s.name as supplier_name
+                    s.name as supplier_name,
+                    mc.pin as sim_pin, mc.puk as sim_puk
              FROM assets a
              LEFT JOIN users u ON a.assigned_to_user_id = u.id
              LEFT JOIN suppliers s ON a.supplier_id = s.id
+             LEFT JOIN mobile_contracts mc ON a.phone_number IS NOT NULL
+               AND a.phone_number != ''
+               AND REPLACE(REPLACE(REPLACE(REPLACE(mc.phone_number,' ',''),'/',''),'-',''),'+49','0')
+                 = REPLACE(REPLACE(REPLACE(REPLACE(a.phone_number,' ',''),'/',''),'-',''),'+49','0')
              WHERE (a.active = 1 OR a.active IS NULL)`
   const params: any[] = []
   if (search) {

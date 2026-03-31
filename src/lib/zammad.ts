@@ -264,6 +264,38 @@ export async function syncStatusToZammad(ticketNumber: string, newStatus: string
   }
 }
 
+// ─── Sync comment/article to Zammad ───
+
+export async function syncCommentToZammad(ticketNumber: string, body: string, isInternal: boolean, authorName: string): Promise<boolean> {
+  const s = await getZammadSettings()
+  if (!s.zammad_url || !s.zammad_token) return false
+  if (!ticketNumber.startsWith("ZAM-")) return false
+
+  try {
+    const ticket = await queryOne<any>("SELECT zammad_id FROM tickets WHERE ticket_number = ?", [ticketNumber])
+    if (!ticket?.zammad_id) return false
+
+    await zammadFetch(`/ticket_articles`, {
+      method: "POST",
+      body: JSON.stringify({
+        ticket_id: ticket.zammad_id,
+        body: body,
+        content_type: "text/html",
+        type: "note",
+        internal: isInternal,
+        sender: "Agent",
+        subject: `Kommentar von ${authorName}`,
+      }),
+    })
+
+    console.log(`[Zammad Sync] Kommentar für ${ticketNumber} (zammad_id=${ticket.zammad_id}) übertragen`)
+    return true
+  } catch (err: any) {
+    console.error(`[Zammad Sync] Kommentar-Sync fehlgeschlagen für ${ticketNumber}:`, err.message)
+    return false
+  }
+}
+
 // ─── Shared blacklist check (used by Zammad sync + Mail poller) ───
 
 export async function isMailBlacklisted(subject: string, senderEmail?: string): Promise<boolean> {

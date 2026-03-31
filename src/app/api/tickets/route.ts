@@ -34,8 +34,8 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  if (status && status !== "all") { where += " AND t.status = ?"; params.push(status) }
-  else if (!status) { where += " AND t.status NOT IN ('closed', 'resolved')" }
+  if (status === "active" || !status) { where += " AND t.status NOT IN ('closed', 'resolved')" }
+  else if (status && status !== "all") { where += " AND t.status = ?"; params.push(status) }
   if (priority) { where += " AND t.priority = ?"; params.push(priority) }
   if (search) { where += " AND (t.title LIKE ? OR t.ticket_number LIKE ?)"; params.push(`%${search}%`, `%${search}%`) }
 

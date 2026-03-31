@@ -596,6 +596,7 @@ export function AssetsClient({ platform }: { platform?: string }) {
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Hersteller / Modell</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Seriennr.</th>
                 {!platform && <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Plattform</th>}
+                {platform === "android" && <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">SIM-PIN</th>}
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Status</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Zugewiesen an</th>
                 {canEdit && <th className="px-4 py-3 w-20" />}
@@ -638,6 +639,15 @@ export function AssetsClient({ platform }: { platform?: string }) {
                         <span className={`text-xs font-medium border rounded-full px-2 py-0.5 ${plat.color}`}>
                           {plat.emoji} {plat.label}
                         </span>
+                      </td>
+                    )}
+                    {platform === "android" && (
+                      <td className="px-4 py-3">
+                        {a.sim_pin ? (
+                          <span className="font-mono text-xs bg-muted px-2 py-1 rounded">{a.sim_pin}</span>
+                        ) : (
+                          <span className="text-muted-foreground opacity-30">—</span>
+                        )}
                       </td>
                     )}
                     <td className="px-4 py-3">

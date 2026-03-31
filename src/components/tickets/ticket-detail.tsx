@@ -93,6 +93,7 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
   const [status, setStatus] = useState(ticket.status)
   const [priority, setPriority] = useState(ticket.priority)
   const [assigneeId, setAssigneeId] = useState(ticket.assignee_id?.toString() || "none")
+  const [affectedUserId, setAffectedUserId] = useState(ticket.affected_user_id?.toString() || "none")
   const [showForward, setShowForward] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [removingDelegate, setRemovingDelegate] = useState(false)
@@ -129,6 +130,16 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assignee_id: userId === "none" ? null : userId }),
+    })
+    router.refresh()
+  }
+
+  async function updateAffectedUser(userId: string) {
+    setAffectedUserId(userId)
+    await fetch(`/api/tickets/${ticket.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ affected_user_id: userId === "none" ? null : userId }),
     })
     router.refresh()
   }
@@ -368,6 +379,21 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
               <div>
                 <p className="text-muted-foreground text-xs mb-1">Ersteller</p>
                 <span>{ticket.requester_name}</span>
+              </div>
+              <Separator />
+              <div>
+                <p className="text-muted-foreground text-xs mb-1">Betroffener</p>
+                {isAdmin ? (
+                  <Select value={affectedUserId} onValueChange={updateAffectedUser}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Gleich wie Ersteller" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Gleich wie Ersteller</SelectItem>
+                      {ticket.allUsers?.map((u: any) => <SelectItem key={u.id} value={u.id.toString()}>{u.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span>{ticket.affected_user_name || ticket.requester_name}</span>
+                )}
               </div>
               <div>
                 <p className="text-muted-foreground text-xs mb-1">Kategorie</p>

@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Search, Filter, Loader2, AlertCircle, Users } from "lucide-react"
+import { Plus, Search, Filter, Loader2, AlertCircle, Users, ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
 import { de } from "date-fns/locale"
@@ -39,11 +39,14 @@ function TicketsContent() {
   const [tickets, setTickets] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState("active")
   const [priorityFilter, setPriorityFilter] = useState("all")
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState({ title: "", description: "", priority: "medium", category: "Sonstiges", on_behalf_of: "" })
   const [submitting, setSubmitting] = useState(false)
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const perPage = 50
   const [isAssistenz, setIsAssistenz] = useState(false)
   const [colleagues, setColleagues] = useState<any[]>([])
 
@@ -72,13 +75,16 @@ function TicketsContent() {
     setLoading(true)
     const params = new URLSearchParams()
     if (search) params.set("search", search)
-    if (statusFilter !== "all") params.set("status", statusFilter)
+    params.set("status", statusFilter)
     if (priorityFilter !== "all") params.set("priority", priorityFilter)
+    params.set("page", page.toString())
+    params.set("limit", perPage.toString())
     const res = await fetch(`/api/tickets?${params}`)
     const data = await res.json()
     setTickets(data.tickets || [])
+    setTotal(data.total || 0)
     setLoading(false)
-  }, [search, statusFilter, priorityFilter])
+  }, [search, statusFilter, priorityFilter, page])
 
   useEffect(() => { fetchTickets() }, [fetchTickets])
 
@@ -112,10 +118,11 @@ function TicketsContent() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Ticket suchen..." className="pl-8" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setPage(1) }}>
           <SelectTrigger className="w-40"><Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" /><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Alle Status</SelectItem>
+            <SelectItem value="active">Aktive Tickets</SelectItem>
+            <SelectItem value="all">Alle (inkl. geschlossen)</SelectItem>
             <SelectItem value="open">Offen</SelectItem>
             <SelectItem value="pending">Ausstehend</SelectItem>
             <SelectItem value="in_progress">In Arbeit</SelectItem>
@@ -123,7 +130,7 @@ function TicketsContent() {
             <SelectItem value="closed">Geschlossen</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+        <Select value={priorityFilter} onValueChange={v => { setPriorityFilter(v); setPage(1) }}>
           <SelectTrigger className="w-40"><SelectValue placeholder="Priorität" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Alle Prioritäten</SelectItem>
@@ -191,6 +198,22 @@ function TicketsContent() {
           )}
         </CardContent>
       </Card>
+
+      {/* Pagination */}
+      {total > perPage && (
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>{total} Tickets gesamt</span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+              <ChevronLeft className="h-4 w-4" /> Zurück
+            </Button>
+            <span>Seite {page} von {Math.ceil(total / perPage)}</span>
+            <Button variant="outline" size="sm" disabled={page >= Math.ceil(total / perPage)} onClick={() => setPage(p => p + 1)}>
+              Weiter <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* New Ticket Dialog */}
       <Dialog open={showNew} onOpenChange={setShowNew}>
