@@ -45,7 +45,7 @@ export function DashboardShell({ user, impersonating, children }: DashboardShell
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-          <div className="relative z-10 h-full w-72 shadow-xl">
+          <div className="relative z-10 h-full w-72 shadow-xl overflow-y-auto bg-card">
             <Sidebar />
           </div>
         </div>
