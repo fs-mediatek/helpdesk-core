@@ -124,9 +124,10 @@ function NotificationPanel({ onClose, onCleared }: { onClose: () => void; onClea
   )
 }
 
-export function Topbar({ user, impersonating }: {
+export function Topbar({ user, impersonating, onMobileMenuToggle }: {
   user?: { name: string; role: string }
   impersonating?: { originalName: string }
+  onMobileMenuToggle?: () => void
 }) {
   const { resolvedTheme, setTheme } = useTheme()
   const router = useRouter()
@@ -175,9 +176,18 @@ export function Topbar({ user, impersonating }: {
   const initials = user?.name?.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "U"
 
   return (
-    <header className={`flex h-14 items-center gap-4 border-b px-4 lg:px-6 ${impersonating ? "bg-amber-500/10 border-amber-500/30" : "bg-card"}`}>
+    <header className={`flex h-14 items-center gap-2 md:gap-4 border-b px-3 md:px-4 lg:px-6 ${impersonating ? "bg-amber-500/10 border-amber-500/30" : "bg-card"}`}>
+      {/* Mobile hamburger */}
+      {onMobileMenuToggle && (
+        <button
+          onClick={onMobileMenuToggle}
+          className="md:hidden p-2 -ml-1 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+        </button>
+      )}
       <div className="flex flex-1 items-center gap-2">
-        <div className="relative w-full max-w-sm">
+        <div className="relative w-full max-w-sm hidden sm:block">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Suchen..." className="pl-8 bg-background" />
         </div>
