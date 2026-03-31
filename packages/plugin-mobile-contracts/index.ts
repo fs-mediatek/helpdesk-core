@@ -14,6 +14,7 @@ const plugin: HelpdeskPlugin = {
       { label: 'Rechnungen', href: '/invoices', icon: 'FileText' },
       { label: 'Kostenstellen', href: '/cost-centers', icon: 'Building2' },
       { label: 'Auswertung', href: '/analytics', icon: 'BarChart2' },
+      { label: 'SIM-Karten', href: '/sim-cards', icon: 'CreditCard' },
     ],
   },
 
@@ -82,6 +83,20 @@ const plugin: HelpdeskPlugin = {
       status VARCHAR(20) DEFAULT 'matched',
       INDEX idx_invoice (invoice_id),
       INDEX idx_phone (phone_number)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+    `CREATE TABLE IF NOT EXISTS mobile_sim_cards (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      sim_number VARCHAR(100) NOT NULL,
+      provider VARCHAR(100) DEFAULT NULL,
+      contact_name VARCHAR(150) DEFAULT NULL,
+      contact_email VARCHAR(200) DEFAULT NULL,
+      status ENUM('blank','sent','activated') DEFAULT 'blank',
+      notes TEXT DEFAULT NULL,
+      added_by INT DEFAULT NULL,
+      sent_at TIMESTAMP NULL DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_sim (sim_number)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   ],
 
@@ -722,6 +737,173 @@ const plugin: HelpdeskPlugin = {
          ORDER BY invoice_year ASC, invoice_month ASC`
       )
       return NextResponse.json({ success: true, data: trend })
+    },
+
+    // ============================================
+    // SIM CARDS — LIST
+    // ============================================
+    'GET /sim-cards': async (_req, ctx) => {
+      const search = ctx.searchParams.get('search')
+      const status = ctx.searchParams.get('status')
+
+      let where = ' WHERE 1=1'
+      const params: any[] = []
+      if (search) {
+        where += ' AND (s.sim_number LIKE ? OR s.provider LIKE ? OR s.contact_name LIKE ?)'
+        params.push(`%${search}%`, `%${search}%`, `%${search}%`)
+      }
+      if (status) {
+        where += ' AND s.status = ?'
+        params.push(status)
+      }
+
+      const cards = await ctx.db.query(
+        `SELECT s.*, u.name as added_by_name FROM mobile_sim_cards s LEFT JOIN users u ON s.added_by = u.id${where} ORDER BY s.created_at DESC`,
+        params
+      )
+      return NextResponse.json({ success: true, data: cards })
+    },
+
+    // ============================================
+    // SIM CARDS — CREATE
+    // ============================================
+    'POST /sim-cards': async (req, ctx) => {
+      const body = await req.json()
+      const { sim_number, provider, contact_name, contact_email, notes } = body
+      if (!sim_number?.trim()) return NextResponse.json({ success: false, error: 'SIM-Kartennummer erforderlich' }, { status: 400 })
+
+      const existing = await ctx.db.queryOne('SELECT id FROM mobile_sim_cards WHERE sim_number = ?', [sim_number.trim()])
+      if (existing) return NextResponse.json({ success: false, error: 'SIM-Kartennummer bereits vorhanden' }, { status: 409 })
+
+      const insertId = await ctx.db.insert(
+        'INSERT INTO mobile_sim_cards (sim_number, provider, contact_name, contact_email, notes, added_by) VALUES (?,?,?,?,?,?)',
+        [sim_number.trim(), provider || null, contact_name || null, contact_email || null, notes || null, ctx.session.userId]
+      )
+      const card = await ctx.db.queryOne('SELECT * FROM mobile_sim_cards WHERE id = ?', [insertId])
+      return NextResponse.json({ success: true, data: card })
+    },
+
+    // ============================================
+    // SIM CARDS — UPDATE
+    // ============================================
+    'PUT /sim-cards/:id': async (req, ctx) => {
+      const card = await ctx.db.queryOne('SELECT * FROM mobile_sim_cards WHERE id = ?', [ctx.params.id])
+      if (!card) return NextResponse.json({ success: false, error: 'SIM-Karte nicht gefunden' }, { status: 404 })
+
+      const body = await req.json()
+      const fields = ['provider', 'contact_name', 'contact_email', 'status', 'notes']
+      const sets: string[] = []
+      const params: any[] = []
+      for (const f of fields) {
+        if (body[f] !== undefined) {
+          sets.push(`${f} = ?`)
+          params.push(body[f])
+        }
+      }
+      if (sets.length > 0) {
+        params.push(ctx.params.id)
+        await ctx.db.query(`UPDATE mobile_sim_cards SET ${sets.join(', ')} WHERE id = ?`, params)
+      }
+      const updated = await ctx.db.queryOne('SELECT * FROM mobile_sim_cards WHERE id = ?', [ctx.params.id])
+      return NextResponse.json({ success: true, data: updated })
+    },
+
+    // ============================================
+    // SIM CARDS — DELETE
+    // ============================================
+    'DELETE /sim-cards/:id': async (_req, ctx) => {
+      await ctx.db.query('DELETE FROM mobile_sim_cards WHERE id = ?', [ctx.params.id])
+      return NextResponse.json({ success: true })
+    },
+
+    // ============================================
+    // SIM CARDS — SEND ACTIVATION EMAIL
+    // ============================================
+    'POST /sim-cards/send-activation': async (req, ctx) => {
+      const { sendMail } = await import('../../src/lib/mailer')
+      const body = await req.json()
+      const { ids } = body
+
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return NextResponse.json({ success: false, error: 'Keine SIM-Karten ausgewählt' }, { status: 400 })
+      }
+
+      const placeholders = ids.map(() => '?').join(',')
+      const cards = await ctx.db.query<Record<string, any>>(
+        `SELECT * FROM mobile_sim_cards WHERE id IN (${placeholders})`,
+        ids
+      )
+
+      if (cards.length === 0) {
+        return NextResponse.json({ success: false, error: 'Keine SIM-Karten gefunden' }, { status: 404 })
+      }
+
+      // Group cards by contact_email
+      const grouped: Record<string, typeof cards> = {}
+      for (const card of cards) {
+        const email = card.contact_email
+        if (!email) continue
+        if (!grouped[email]) grouped[email] = []
+        grouped[email].push(card)
+      }
+
+      if (Object.keys(grouped).length === 0) {
+        return NextResponse.json({ success: false, error: 'Keine Ansprechpartner-E-Mail hinterlegt' }, { status: 400 })
+      }
+
+      let sent = 0
+      const errors: string[] = []
+
+      for (const [email, simCards] of Object.entries(grouped)) {
+        const contactName = simCards[0].contact_name || 'Ansprechpartner'
+        const provider = simCards[0].provider || 'Unbekannt'
+
+        const simRows = simCards.map(c =>
+          `<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;">${c.sim_number}</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">${c.provider || '-'}</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">${c.notes || '-'}</td></tr>`
+        ).join('')
+
+        const html = `
+          <div style="font-family:Arial,sans-serif;max-width:600px;">
+            <h2 style="color:#333;">SIM-Karten Aktivierungsanfrage</h2>
+            <p>Hallo ${contactName},</p>
+            <p>wir bitten um Aktivierung der folgenden SIM-Karte${simCards.length > 1 ? 'n' : ''}:</p>
+            <table style="border-collapse:collapse;width:100%;margin:16px 0;">
+              <thead>
+                <tr style="background:#f3f4f6;">
+                  <th style="padding:8px 12px;border:1px solid #e5e7eb;text-align:left;">SIM-Nummer</th>
+                  <th style="padding:8px 12px;border:1px solid #e5e7eb;text-align:left;">Provider</th>
+                  <th style="padding:8px 12px;border:1px solid #e5e7eb;text-align:left;">Hinweise</th>
+                </tr>
+              </thead>
+              <tbody>${simRows}</tbody>
+            </table>
+            <p>Bitte teilen Sie uns die zugewiesenen Rufnummern nach Aktivierung mit.</p>
+            <p>Mit freundlichen Grüßen<br/>IT HelpDesk</p>
+          </div>`
+
+        try {
+          await sendMail(email, `SIM-Karten Aktivierung (${simCards.length} Karte${simCards.length > 1 ? 'n' : ''}) — ${provider}`, html)
+          // Update status to 'sent'
+          const sentIds = simCards.map(c => c.id)
+          const ph = sentIds.map(() => '?').join(',')
+          await ctx.db.query(
+            `UPDATE mobile_sim_cards SET status = 'sent', sent_at = NOW() WHERE id IN (${ph})`,
+            sentIds
+          )
+          sent += simCards.length
+        } catch (err: any) {
+          errors.push(`${email}: ${err.message}`)
+        }
+      }
+
+      if (errors.length > 0 && sent === 0) {
+        return NextResponse.json({ success: false, error: 'E-Mail-Versand fehlgeschlagen: ' + errors.join('; ') }, { status: 500 })
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: { sent, errors },
+      })
     },
 
     // ============================================

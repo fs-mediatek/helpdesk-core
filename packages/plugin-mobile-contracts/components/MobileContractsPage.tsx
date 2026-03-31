@@ -5,6 +5,7 @@ import {
   Plus, Upload, Download, Search, X, Eye, EyeOff,
   ChevronLeft, ChevronRight, Loader2, AlertTriangle,
   CheckCircle2, CircleDot, Trash2, Pencil,
+  CreditCard, Send, ScanBarcode,
 } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -87,6 +88,19 @@ interface TrendEntry {
   total_gross: number
   total_net: number
   line_count: number
+}
+
+interface SimCard {
+  id: number
+  sim_number: string
+  provider: string | null
+  contact_name: string | null
+  contact_email: string | null
+  status: 'blank' | 'sent' | 'activated'
+  notes: string | null
+  added_by_name: string | null
+  sent_at: string | null
+  created_at: string
 }
 
 interface Discrepancy {
@@ -1283,6 +1297,403 @@ function AuswertungTab() {
   )
 }
 
+// ─── SIM-Karten Tab ──────────────────────────────────────────────────────────
+
+function SimStatusBadge({ status }: { status: string }) {
+  if (status === 'sent') return <Badge label="Versendet" color="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" />
+  if (status === 'activated') return <Badge label="Aktiviert" color="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" />
+  return <Badge label="Blanko" color="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" />
+}
+
+function CameraScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (code: string) => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const [error, setError] = useState('')
+  const [scanning, setScanning] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+        })
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
+        streamRef.current = stream
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          videoRef.current.play()
+        }
+
+        // Use BarcodeDetector if available
+        if ('BarcodeDetector' in window) {
+          const detector = new (window as any).BarcodeDetector({ formats: ['code_128', 'code_39', 'ean_13', 'ean_8', 'itf', 'codabar', 'code_93'] })
+          const interval = setInterval(async () => {
+            if (cancelled || !videoRef.current || videoRef.current.readyState < 2) return
+            try {
+              const barcodes = await detector.detect(videoRef.current)
+              if (barcodes.length > 0) {
+                clearInterval(interval)
+                stream.getTracks().forEach(t => t.stop())
+                onScan(barcodes[0].rawValue)
+              }
+            } catch { /* ignore detection errors */ }
+          }, 250)
+          return () => clearInterval(interval)
+        } else {
+          setError('Barcode-Erkennung wird von diesem Browser nicht unterstützt. Bitte Chrome oder Edge verwenden.')
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err.name === 'NotAllowedError'
+            ? 'Kamerazugriff wurde verweigert. Bitte Berechtigung erteilen.'
+            : 'Kamera konnte nicht gestartet werden: ' + err.message)
+        }
+      }
+    }
+
+    startCamera()
+
+    return () => {
+      cancelled = true
+      streamRef.current?.getTracks().forEach(t => t.stop())
+    }
+  }, [onScan])
+
+  return (
+    <Modal title={<span className="flex items-center gap-2"><ScanBarcode className="w-5 h-5" />Barcode scannen</span>} onClose={() => {
+      streamRef.current?.getTracks().forEach(t => t.stop())
+      onClose()
+    }}
+      footer={<Btn variant="secondary" onClick={() => { streamRef.current?.getTracks().forEach(t => t.stop()); onClose() }}>Abbrechen</Btn>}
+    >
+      {error ? (
+        <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/20 dark:text-red-300 text-sm">{error}</div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">Halte den Barcode der SIM-Karte vor die Kamera.</p>
+          <div className="relative rounded-lg overflow-hidden bg-black aspect-video">
+            <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+            {scanning && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="w-64 h-20 border-2 border-emerald-400 rounded-lg opacity-70" />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+function SimKartenTab() {
+  const [cards, setCards] = useState<SimCard[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [sending, setSending] = useState(false)
+  const [sendResult, setSendResult] = useState<{ sent?: number; error?: string } | null>(null)
+  const [editCard, setEditCard] = useState<SimCard | null>(null)
+
+  // Scanner input state
+  const [scanInput, setScanInput] = useState('')
+  const [provider, setProvider] = useState('')
+  const [contactName, setContactName] = useState('')
+  const [contactEmail, setContactEmail] = useState('')
+  const [addError, setAddError] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [showCamera, setShowCamera] = useState(false)
+  const scanRef = useRef<HTMLInputElement>(null)
+
+  const load = useCallback(() => {
+    setLoading(true)
+    const p = new URLSearchParams()
+    if (search) p.set('search', search)
+    if (statusFilter) p.set('status', statusFilter)
+    apiFetch('/sim-cards?' + p.toString()).then(r => {
+      if (r.success) setCards(r.data)
+      setLoading(false)
+    })
+  }, [search, statusFilter])
+
+  useEffect(() => { load() }, [load])
+
+  // Auto-focus scanner input
+  useEffect(() => { scanRef.current?.focus() }, [])
+
+  async function addSimCard() {
+    if (!scanInput.trim()) return
+    setAdding(true)
+    setAddError('')
+    const res = await apiFetch('/sim-cards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sim_number: scanInput.trim(),
+        provider: provider || null,
+        contact_name: contactName || null,
+        contact_email: contactEmail || null,
+      }),
+    })
+    setAdding(false)
+    if (res.success) {
+      setScanInput('')
+      load()
+      scanRef.current?.focus()
+    } else {
+      setAddError(res.error || 'Fehler beim Anlegen')
+    }
+  }
+
+  function handleScanKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      addSimCard()
+    }
+  }
+
+  function toggleSelect(id: number) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    if (selected.size === cards.filter(c => c.status === 'blank').length) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(cards.filter(c => c.status === 'blank').map(c => c.id)))
+    }
+  }
+
+  async function sendActivation() {
+    if (selected.size === 0) return
+    setSending(true)
+    setSendResult(null)
+    const res = await apiFetch('/sim-cards/send-activation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: Array.from(selected) }),
+    })
+    setSending(false)
+    if (res.success) {
+      setSendResult({ sent: res.data.sent })
+      setSelected(new Set())
+      load()
+    } else {
+      setSendResult({ error: res.error })
+    }
+  }
+
+  async function deleteCard(id: number) {
+    if (!confirm('SIM-Karte wirklich löschen?')) return
+    const res = await apiFetch(`/sim-cards/${id}`, { method: 'DELETE' })
+    if (res.success) load()
+  }
+
+  async function updateStatus(id: number, status: string) {
+    await apiFetch(`/sim-cards/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+    load()
+  }
+
+  const blankCount = cards.filter(c => c.status === 'blank').length
+  const sentCount = cards.filter(c => c.status === 'sent').length
+  const activatedCount = cards.filter(c => c.status === 'activated').length
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold">Blanko-SIM-Karten</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">SIM-Karten scannen, verwalten und zur Aktivierung versenden</p>
+        </div>
+        {selected.size > 0 && (
+          <Btn onClick={sendActivation} disabled={sending}>
+            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {selected.size} Karte{selected.size > 1 ? 'n' : ''} zur Aktivierung senden
+          </Btn>
+        )}
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <StatCard icon={<CreditCard className="w-5 h-5" />} value={blankCount} label="Blanko" color="bg-blue-100 text-blue-600 dark:bg-blue-900/30" />
+        <StatCard icon={<Send className="w-5 h-5" />} value={sentCount} label="Versendet" color="bg-amber-100 text-amber-600 dark:bg-amber-900/30" />
+        <StatCard icon={<CheckCircle2 className="w-5 h-5" />} value={activatedCount} label="Aktiviert" color="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30" />
+      </div>
+
+      {/* Send result notification */}
+      {sendResult && (
+        <div className={`p-3 rounded-lg text-sm ${sendResult.error ? 'bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/20 dark:text-red-300' : 'bg-emerald-50 border border-emerald-200 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300'}`}>
+          {sendResult.error ? sendResult.error : `${sendResult.sent} SIM-Karte${(sendResult.sent ?? 0) > 1 ? 'n' : ''} erfolgreich zur Aktivierung versendet.`}
+          <button className="ml-2 underline" onClick={() => setSendResult(null)}>Schließen</button>
+        </div>
+      )}
+
+      {/* Scanner / Add section */}
+      <div className="rounded-xl border bg-card p-5">
+        <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
+          <ScanBarcode className="w-4 h-4" />
+          SIM-Karte scannen / hinzufügen
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+          <Field label="SIM-Kartennummer (Barcode scannen) *">
+            <div className="flex gap-2">
+              <input
+                ref={scanRef}
+                className="input font-mono flex-1"
+                placeholder="SIM-Nummer scannen oder eingeben..."
+                value={scanInput}
+                onChange={e => setScanInput(e.target.value)}
+                onKeyDown={handleScanKeyDown}
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setShowCamera(true)}
+                className="px-3 py-2 rounded-lg border border-border bg-background hover:bg-muted transition-colors"
+                title="Mit Kamera scannen"
+              >
+                <ScanBarcode className="w-5 h-5" />
+              </button>
+            </div>
+          </Field>
+          <Field label="Provider">
+            <input
+              className="input"
+              placeholder="z.B. Vodafone, Telekom..."
+              value={provider}
+              onChange={e => setProvider(e.target.value)}
+            />
+          </Field>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 items-end">
+          <Field label="Ansprechpartner">
+            <input
+              className="input"
+              placeholder="Name"
+              value={contactName}
+              onChange={e => setContactName(e.target.value)}
+            />
+          </Field>
+          <Field label="E-Mail (Aktivierung)">
+            <input
+              className="input"
+              type="email"
+              placeholder="ansprechpartner@provider.de"
+              value={contactEmail}
+              onChange={e => setContactEmail(e.target.value)}
+            />
+          </Field>
+          <Btn onClick={addSimCard} disabled={adding || !scanInput.trim()}>
+            {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            Hinzufügen
+          </Btn>
+        </div>
+        {addError && <div className="mt-2 text-sm text-destructive">{addError}</div>}
+      </div>
+
+      {/* Camera Scanner Modal */}
+      {showCamera && (
+        <CameraScannerModal
+          onClose={() => setShowCamera(false)}
+          onScan={(code) => { setScanInput(code); setShowCamera(false); scanRef.current?.focus() }}
+        />
+      )}
+
+      {/* Filters */}
+      <div className="flex gap-3 items-center">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            className="pl-9"
+            style={{ width: '14rem', padding: '0.5rem 0.75rem 0.5rem 2.25rem', fontSize: '0.875rem', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem', background: 'hsl(var(--background))', color: 'hsl(var(--foreground))', outline: 'none' }}
+            placeholder="SIM-Nr., Provider suchen..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <select className="input" style={{ width: 'auto' }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+          <option value="">Alle Status</option>
+          <option value="blank">Blanko</option>
+          <option value="sent">Versendet</option>
+          <option value="activated">Aktiviert</option>
+        </select>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-xl border overflow-hidden">
+        <div className="overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="px-4 py-3 w-8">
+                  <input type="checkbox" checked={blankCount > 0 && selected.size === blankCount} onChange={toggleAll} />
+                </th>
+                {['SIM-Nummer', 'Provider', 'Ansprechpartner', 'E-Mail', 'Status', 'Erfasst am', 'Versendet am', ''].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">
+                  <Loader2 className="w-6 h-6 animate-spin inline" />
+                </td></tr>
+              ) : cards.length === 0 ? (
+                <tr><td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">Keine SIM-Karten vorhanden</td></tr>
+              ) : cards.map(c => (
+                <tr key={c.id} className={`border-t hover:bg-muted/40 ${c.status === 'activated' ? 'opacity-50' : ''}`}>
+                  <td className="px-4 py-3">
+                    {c.status === 'blank' && (
+                      <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)} />
+                    )}
+                  </td>
+                  <td className="px-4 py-3 font-mono font-medium">{c.sim_number}</td>
+                  <td className="px-4 py-3">{c.provider || '-'}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{c.contact_name || '-'}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{c.contact_email || '-'}</td>
+                  <td className="px-4 py-3"><SimStatusBadge status={c.status} /></td>
+                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{new Date(c.created_at).toLocaleString('de-DE')}</td>
+                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{c.sent_at ? new Date(c.sent_at).toLocaleString('de-DE') : '-'}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      {c.status === 'sent' && (
+                        <button
+                          className="p-1.5 rounded hover:bg-emerald-50 text-emerald-600"
+                          title="Als aktiviert markieren"
+                          onClick={() => updateStatus(c.id, 'activated')}
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button
+                        className="p-1.5 rounded hover:bg-red-50 text-red-500"
+                        title="Löschen"
+                        onClick={() => deleteCard(c.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const TABS = [
@@ -1290,6 +1701,7 @@ const TABS = [
   { id: 'invoices', label: 'Rechnungen', icon: FileText },
   { id: 'cost-centers', label: 'Kostenstellen', icon: Building2 },
   { id: 'analytics', label: 'Auswertung', icon: BarChart2 },
+  { id: 'sim-cards', label: 'SIM-Karten', icon: CreditCard },
 ] as const
 
 type TabId = typeof TABS[number]['id']
@@ -1300,6 +1712,7 @@ export function MobileContractsPage({ slug }: { slug: string[] }) {
     subpath === 'invoices' ? 'invoices'
     : subpath === 'cost-centers' ? 'cost-centers'
     : subpath === 'analytics' ? 'analytics'
+    : subpath === 'sim-cards' ? 'sim-cards'
     : 'contracts'
 
   const [activeTab, setActiveTab] = useState<TabId>(defaultTab)
@@ -1332,6 +1745,7 @@ export function MobileContractsPage({ slug }: { slug: string[] }) {
       {activeTab === 'invoices' && <RechnungenTab />}
       {activeTab === 'cost-centers' && <KostenstellenTab />}
       {activeTab === 'analytics' && <AuswertungTab />}
+      {activeTab === 'sim-cards' && <SimKartenTab />}
 
       {/* Tailwind input utility class */}
       <style>{`.input { display: block; width: 100%; padding: 0.5rem 0.75rem; font-size: 0.875rem; border: 1px solid hsl(var(--border)); border-radius: 0.5rem; background: hsl(var(--background)); color: hsl(var(--foreground)); outline: none; } .input:focus { border-color: hsl(var(--primary)); box-shadow: 0 0 0 2px hsl(var(--primary) / 0.15); }`}</style>
