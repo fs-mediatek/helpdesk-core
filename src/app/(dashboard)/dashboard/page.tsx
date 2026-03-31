@@ -47,7 +47,7 @@ async function getRecentTickets(userId?: number) {
                u.name as requester_name
         FROM tickets t
         LEFT JOIN users u ON t.requester_id = u.id
-        WHERE t.requester_id = ?
+        WHERE t.requester_id = ? AND t.status NOT IN ('closed', 'resolved')
         ORDER BY t.created_at DESC LIMIT 8
       `, [userId])
     }
@@ -56,6 +56,7 @@ async function getRecentTickets(userId?: number) {
              u.name as requester_name
       FROM tickets t
       LEFT JOIN users u ON t.requester_id = u.id
+      WHERE t.status NOT IN ('closed', 'resolved')
       ORDER BY t.created_at DESC LIMIT 8
     `)
   } catch { return [] }
