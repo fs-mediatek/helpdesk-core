@@ -299,7 +299,7 @@ function LoginContent() {
                 type="button"
                 variant={showPassword ? "outline" : "default"}
                 className="w-full gap-2 h-10"
-                onClick={() => { window.location.href = "/api/auth/microsoft" }}
+                onClick={() => { window.location.href = "/api/auth/microsoft/redirect" }}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 21 21">
                   <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
