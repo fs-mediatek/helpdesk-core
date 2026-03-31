@@ -18,6 +18,7 @@ const SECTIONS = [
   { id: "roles", label: "Rollen", icon: Shield, desc: "Benutzerrollen hinzufügen und verwalten" },
   { id: "numbering", label: "Nummerierung", icon: Hash, desc: "Format für Ticket- und Bestellnummern" },
   { id: "email", label: "E-Mail-Versand", icon: Mail, desc: "SMTP-Server und Mail-Gateway" },
+  { id: "imap", label: "IMAP Mail-Abruf", icon: Mail, desc: "E-Mails per IMAP abrufen und zu Tickets verarbeiten" },
   { id: "microsoft365", label: "Microsoft 365", icon: Cloud, desc: "Login, Mail-Abruf und Graph API" },
   { id: "zammad", label: "Zammad", icon: ArrowLeft, desc: "Ticket-Import und Synchronisation" },
   { id: "claude", label: "Claude AI", icon: Shield, desc: "KI-gestützte Ticket-Analyse" },
@@ -414,6 +415,77 @@ export function SettingsClient({ initialSettings }: { initialSettings: Record<st
     </div>
   )
 
+  // ─── Section: IMAP Mail-Abruf ───
+  if (activeSection === "imap") return (
+    <div className="animate-fade-in max-w-2xl">
+      <SectionHeader title="IMAP Mail-Abruf" desc="E-Mails per IMAP abrufen und automatisch zu Tickets verarbeiten" />
+
+      <Card className="mb-4"><CardContent className="pt-6 space-y-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">IMAP-Server</p>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => set("imap_enabled", settings.imap_enabled === "true" ? "false" : "true")} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${settings.imap_enabled === "true" ? "bg-primary" : "bg-muted-foreground/20"}`}><span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${settings.imap_enabled === "true" ? "translate-x-4.5" : "translate-x-0.5"}`} /></button>
+          <div>
+            <p className="text-sm font-medium">IMAP Mail-Abruf aktivieren</p>
+            <p className="text-xs text-muted-foreground">Ungelesene Mails werden alle 60 Sekunden abgerufen und als Tickets verarbeitet.</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5"><Label>IMAP Host</Label><Input value={settings.imap_host || ""} onChange={e => set("imap_host", e.target.value)} placeholder="z.B. imap.firma.de" /></div>
+          <div className="space-y-1.5"><Label>Port</Label><Input value={settings.imap_port || "993"} onChange={e => set("imap_port", e.target.value)} placeholder="993" /></div>
+        </div>
+        <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Authentifizierung</p>
+          <div className="flex flex-wrap gap-3">
+            {[{ value: "password", label: "Passwort", desc: "Standard-Login" }, { value: "xoauth2", label: "XOAUTH2", desc: "Microsoft 365 (Azure AD)" }].map(opt => {
+              const active = (settings.imap_auth_type || "password") === opt.value
+              return (<button key={opt.value} type="button" onClick={() => { set("imap_auth_type", opt.value); if (opt.value === "xoauth2" && !settings.imap_host) { set("imap_host", "outlook.office365.com"); set("imap_port", "993") } }} className={`flex-1 min-w-[140px] rounded-lg border p-3 text-left transition-all ${active ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "hover:border-muted-foreground/30"}`}><p className={`text-sm font-medium ${active ? "text-primary" : ""}`}>{opt.label}</p><p className="text-xs text-muted-foreground mt-0.5">{opt.desc}</p></button>)
+            })}
+          </div>
+          {(settings.imap_auth_type || "password") === "xoauth2" && (
+            <p className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-2">
+              XOAUTH2 verwendet die Microsoft 365 Zugangsdaten (Tenant-ID, Client-ID, Client-Secret) aus den MS365-Einstellungen. Stelle sicher, dass dort alles konfiguriert ist und die Azure App den Scope <span className="font-mono">IMAP.AccessAsApp</span> hat.
+            </p>
+          )}
+        </div>
+        <div className="space-y-1.5"><Label>Benutzername / E-Mail</Label><Input value={settings.imap_user || ""} onChange={e => set("imap_user", e.target.value)} placeholder={(settings.imap_auth_type === "xoauth2") ? "support@ueag-jena.de" : "helpdesk@firma.de"} /></div>
+        {(settings.imap_auth_type || "password") !== "xoauth2" && (
+          <div className="space-y-1.5"><Label>Passwort</Label><Input type="password" value={settings.imap_pass || ""} onChange={e => set("imap_pass", e.target.value)} /></div>
+        )}
+        <div className="space-y-1.5"><Label>Postfach / Ordner</Label><Input value={settings.imap_mailbox || ""} onChange={e => set("imap_mailbox", e.target.value)} placeholder="INBOX" /><p className="text-xs text-muted-foreground">Standard: INBOX. Kann auf einen Unterordner geändert werden.</p></div>
+
+        <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Verbindungssicherheit</p>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => set("imap_secure", settings.imap_secure === "false" ? "true" : "false")} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${settings.imap_secure !== "false" ? "bg-primary" : "bg-muted-foreground/20"}`}><span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${settings.imap_secure !== "false" ? "translate-x-4.5" : "translate-x-0.5"}`} /></button>
+            <span className="text-sm">SSL/TLS verwenden (Port 993)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => set("imap_reject_unauthorized", settings.imap_reject_unauthorized === "false" ? "true" : "false")} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${settings.imap_reject_unauthorized === "false" ? "bg-primary" : "bg-muted-foreground/20"}`}><span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${settings.imap_reject_unauthorized === "false" ? "translate-x-4.5" : "translate-x-0.5"}`} /></button>
+            <span className="text-xs text-muted-foreground">Selbstsignierte Zertifikate akzeptieren</span>
+          </div>
+        </div>
+
+        <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Funktionsweise</p>
+          <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+            <li>Neue Mail → Neues Ticket (Betreff = Titel, Body = Beschreibung)</li>
+            <li>Antwort mit <span className="font-mono">[TIC-2026-0001]</span> im Betreff → Kommentar zum bestehenden Ticket</li>
+            <li>Absender wird als Benutzer angelegt, falls nicht vorhanden</li>
+            <li>Verarbeitete Mails werden als gelesen markiert</li>
+          </ul>
+        </div>
+
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" type="button" onClick={async () => {
+            const res = await fetch("/api/mail-poller?source=imap", { method: "POST" })
+            const data = await res.json()
+            alert(data.success ? `${data.processed} Mail(s) verarbeitet` : `Fehler: ${data.error}`)
+          }}><Mail className="h-3.5 w-3.5 mr-1.5" /> Jetzt abrufen</Button>
+        </div>
+      </CardContent></Card>
+    </div>
+  )
+
   // ─── Section: Microsoft 365 ───
   if (activeSection === "microsoft365") return (
     <div className="animate-fade-in max-w-2xl">
@@ -431,14 +503,29 @@ export function SettingsClient({ initialSettings }: { initialSettings: Record<st
       </CardContent></Card>
 
       <Card className="mb-4"><CardContent className="pt-6 space-y-4">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Anmelden mit Microsoft</p>
-        <div className="flex items-center gap-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Anmeldung auf der Login-Seite</p>
+        <div className="flex items-center gap-3 mb-3">
           <button type="button" onClick={() => set("ms_login_enabled", settings.ms_login_enabled === "true" ? "false" : "true")} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${settings.ms_login_enabled === "true" ? "bg-primary" : "bg-muted-foreground/20"}`}><span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${settings.ms_login_enabled === "true" ? "translate-x-4.5" : "translate-x-0.5"}`} /></button>
           <div>
-            <p className="text-sm font-medium">Microsoft-Login auf der Anmeldeseite anzeigen</p>
+            <p className="text-sm font-medium">Microsoft-Login aktivieren</p>
             <p className="text-xs text-muted-foreground">Benutzer können sich mit ihrem Microsoft-Konto anmelden. Neue Benutzer werden automatisch angelegt.</p>
           </div>
         </div>
+        {settings.ms_login_enabled === "true" && (
+          <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Login-Methode</p>
+            <div className="flex flex-wrap gap-3">
+              {[
+                { value: "both", label: "Beides", desc: "E-Mail/Passwort + Microsoft" },
+                { value: "password", label: "Nur Passwort", desc: "Kein Microsoft-Button" },
+                { value: "microsoft", label: "Nur Microsoft", desc: "Kein Passwort-Formular" },
+              ].map(opt => {
+                const active = (settings.login_method || "both") === opt.value
+                return (<button key={opt.value} type="button" onClick={() => set("login_method", opt.value)} className={`flex-1 min-w-[140px] rounded-lg border p-3 text-left transition-all ${active ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "hover:border-muted-foreground/30"}`}><p className={`text-sm font-medium ${active ? "text-primary" : ""}`}>{opt.label}</p><p className="text-xs text-muted-foreground mt-0.5">{opt.desc}</p></button>)
+              })}
+            </div>
+          </div>
+        )}
       </CardContent></Card>
 
       <Card><CardContent className="pt-6 space-y-4">

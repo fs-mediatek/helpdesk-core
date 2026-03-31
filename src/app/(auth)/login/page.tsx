@@ -155,7 +155,8 @@ function LoginContent() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
-  const [msLoginEnabled, setMsLoginEnabled] = useState(false)
+  const [showPassword, setShowPassword] = useState(true)
+  const [showMicrosoft, setShowMicrosoft] = useState(false)
   const [mounted, setMounted] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -169,8 +170,9 @@ function LoginContent() {
       if (d.db_ok && !d.has_users) router.push("/setup")
     }).catch(() => {})
 
-    fetch("/api/auth/microsoft/status").then(r => r.json()).then(d => {
-      if (d.enabled) setMsLoginEnabled(true)
+    fetch("/api/auth/login-status").then(r => r.json()).then(d => {
+      setShowPassword(d.show_password !== false)
+      setShowMicrosoft(d.show_microsoft === true)
     }).catch(() => {})
   }, [])
 
@@ -238,69 +240,75 @@ function LoginContent() {
             <CardDescription>Bitte mit deinen Zugangsdaten anmelden.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="email">E-Mail</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                  <Input
-                    id="email"
-                    type="email"
-                    className="pl-9"
-                    placeholder="admin@firma.de"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="password">Passwort</Label>
-                <div className="relative">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                  <Input
-                    id="password"
-                    type="password"
-                    className="pl-9"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-              {error && (
-                <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg login-shake">{error}</p>
-              )}
-              <Button type="submit" className="w-full h-10 font-medium" disabled={loading}>
-                {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Anmelden...</> : "Anmelden"}
-              </Button>
-            </form>
-
-            {msLoginEnabled && (
-              <>
-                <div className="relative my-4">
-                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">oder anmelden über</span>
+            {showPassword && (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="email">E-Mail</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+                    <Input
+                      id="email"
+                      type="email"
+                      className="pl-9"
+                      placeholder="admin@firma.de"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
                   </div>
                 </div>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full gap-2"
-                  onClick={() => { window.location.href = "/api/auth/microsoft" }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 21 21">
-                    <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
-                    <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
-                    <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
-                    <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
-                  </svg>
-                  Microsoft
+                <div className="space-y-1.5">
+                  <Label htmlFor="password">Passwort</Label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+                    <Input
+                      id="password"
+                      type="password"
+                      className="pl-9"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+                {error && (
+                  <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg login-shake">{error}</p>
+                )}
+                <Button type="submit" className="w-full h-10 font-medium" disabled={loading}>
+                  {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Anmelden...</> : "Anmelden"}
                 </Button>
-              </>
+              </form>
+            )}
+
+            {!showPassword && error && (
+              <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg login-shake mb-4">{error}</p>
+            )}
+
+            {showPassword && showMicrosoft && (
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">oder anmelden über</span>
+                </div>
+              </div>
+            )}
+
+            {showMicrosoft && (
+              <Button
+                type="button"
+                variant={showPassword ? "outline" : "default"}
+                className="w-full gap-2 h-10"
+                onClick={() => { window.location.href = "/api/auth/microsoft" }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 21 21">
+                  <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+                  <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+                  <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+                  <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+                </svg>
+                Mit Microsoft anmelden
+              </Button>
             )}
           </CardContent>
         </Card>

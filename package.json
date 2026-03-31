@@ -41,6 +41,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "imapflow": "^1.2.18",
     "jose": "^6.2.1",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.577.0",

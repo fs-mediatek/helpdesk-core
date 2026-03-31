@@ -172,6 +172,14 @@ export async function syncFromZammad(): Promise<{ imported: number; updated: num
             await query("UPDATE tickets SET status = ? WHERE id = ?", [status, existing.id])
             updated++
           }
+
+          // Sync new articles/comments from Zammad → HelpDesk
+          try {
+            await syncArticlesFromZammad(existing.id, t.id)
+          } catch (err: any) {
+            errors.push(`Artikel-Sync #${t.number}: ${err.message}`)
+          }
+
           continue
         }
 
@@ -228,6 +236,80 @@ export async function syncFromZammad(): Promise<{ imported: number; updated: num
   }
 
   return { imported, updated, filtered, errors }
+}
+
+// ─── Sync articles from Zammad into HelpDesk comments ───
+
+async function syncArticlesFromZammad(helpdeskTicketId: number, zammadTicketId: number): Promise<number> {
+  let articles: any[]
+  try {
+    articles = await zammadFetch(`/ticket_articles/by_ticket/${zammadTicketId}`)
+  } catch {
+    return 0
+  }
+
+  if (!articles || articles.length === 0) return 0
+
+  // Get existing comments to avoid duplicates — check for zammad_article_id marker
+  const existingComments = await query<any>(
+    "SELECT content FROM ticket_comments WHERE ticket_id = ?",
+    [helpdeskTicketId]
+  )
+  const existingMarkers = new Set(
+    existingComments
+      .map((c: any) => {
+        const match = (c.content || "").match(/data-zammad-article-id="(\d+)"/)
+        return match ? parseInt(match[1]) : null
+      })
+      .filter(Boolean)
+  )
+
+  // Skip the first article (already used as ticket description on import)
+  let synced = 0
+  for (let i = 1; i < articles.length; i++) {
+    const article = articles[i]
+
+    // Skip if already imported
+    if (existingMarkers.has(article.id)) continue
+
+    // Skip internal articles unless they are from agents (system notifications etc.)
+    // Import both customer and agent articles
+    const senderType = article.sender || "Customer"
+    const isInternal = !!article.internal
+
+    // Skip empty articles
+    const body = article.body || ""
+    if (!body.trim()) continue
+
+    // Determine who wrote it
+    let authorName = "Zammad"
+    if (article.created_by_id) {
+      try {
+        const user = await zammadFetch(`/users/${article.created_by_id}`)
+        authorName = `${user.firstname || ""} ${user.lastname || ""}`.trim() || user.login || "Zammad"
+      } catch {}
+    }
+
+    const senderLabel = senderType === "Customer" ? "Kunde" : senderType === "Agent" ? "Agent" : senderType
+    const prefix = `<p><strong>${senderLabel}: ${authorName}</strong></p>`
+    // Hidden marker to prevent re-import
+    const marker = `<span data-zammad-article-id="${article.id}" style="display:none"></span>`
+    const content = `${marker}${prefix}${body}`
+
+    const createdAt = article.created_at ? toMysqlDate(article.created_at) : null
+
+    await query(
+      "INSERT INTO ticket_comments (ticket_id, user_id, content, is_internal, is_system, created_at) VALUES (?, ?, ?, ?, 0, ?)",
+      [helpdeskTicketId, null, content, isInternal ? 1 : 0, createdAt || new Date().toISOString().slice(0, 19).replace("T", " ")]
+    )
+    synced++
+  }
+
+  if (synced > 0) {
+    console.log(`[Zammad Sync] ${synced} Artikel für Ticket #${helpdeskTicketId} importiert`)
+  }
+
+  return synced
 }
 
 // ─── Sync status back to Zammad ───
