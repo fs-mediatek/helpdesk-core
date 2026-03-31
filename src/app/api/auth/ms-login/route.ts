@@ -11,8 +11,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Microsoft-Login ist nicht aktiviert" }, { status: 400 })
     }
 
-    const baseUrl = req.nextUrl.origin
-    const redirectUri = `${baseUrl}/api/auth/microsoft/callback`
+    // Use APP_URL from env or settings, fallback to request origin
+    const appUrlRows = await query("SELECT value FROM settings WHERE key_name = 'app_url'") as any[]
+    const baseUrl = process.env.APP_URL || appUrlRows[0]?.value || req.nextUrl.origin
+    const redirectUri = `${baseUrl.replace(/\/+$/, '')}/api/auth/microsoft/callback`
     const state = crypto.randomUUID()
 
     const params = new URLSearchParams({

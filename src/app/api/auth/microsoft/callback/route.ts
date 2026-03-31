@@ -25,7 +25,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(new URL("/login?error=Ungültiger+OAuth-State", req.nextUrl.origin))
     }
 
-    const baseUrl = req.nextUrl.origin
+    // Use APP_URL to match the redirect URI sent during login
+    const appUrlRows = await query("SELECT value FROM settings WHERE key_name = 'app_url'") as any[]
+    const baseUrl = (process.env.APP_URL || appUrlRows[0]?.value || req.nextUrl.origin).replace(/\/+$/, '')
     const redirectUri = `${baseUrl}/api/auth/microsoft/callback`
 
     // Exchange code for tokens
