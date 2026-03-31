@@ -17,7 +17,7 @@ interface NavItem {
   key: string
   label: string
   icon: LucideIcon
-  children?: { href: string; label: string; emoji: string }[]
+  children?: { href: string; label: string; emoji: string; adminOnly?: boolean }[]
 }
 
 const coreNavItems: NavItem[] = [
@@ -46,7 +46,7 @@ const coreNavItems: NavItem[] = [
     children: [
       { href: "/p/onboarding/onboarding", label: "Onboarding", emoji: "👤" },
       { href: "/p/onboarding/offboarding", label: "Offboarding", emoji: "👋" },
-      { href: "/p/onboarding/settings", label: "Konfiguration", emoji: "⚙️" },
+      { href: "/p/onboarding/settings", label: "Konfiguration", emoji: "⚙️", adminOnly: true },
     ]
   },
   { key: "analytics", href: "/p/ticket-analytics", label: "Auswertungen", icon: BarChart2 },
@@ -165,7 +165,7 @@ export function Sidebar() {
               </Link>
               {hasChildren && !collapsed && active && (
                 <div className="ml-5 pl-3 border-l-2 border-muted-foreground/15 space-y-0.5 mt-0.5 mb-1">
-                  {item.children!.map(child => {
+                  {item.children!.filter(child => !child.adminOnly || isAdmin).map(child => {
                     const childActive = pathname === child.href || pathname.startsWith(child.href + "/")
                     return (
                       <Link
