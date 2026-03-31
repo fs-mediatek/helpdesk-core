@@ -14,6 +14,7 @@ export default function OffboardingSettingsPage() {
   const [saved, setSaved] = useState(false)
   const [sendingTest, setSendingTest] = useState(false)
   const [testSent, setTestSent] = useState(false)
+  const [testMailTo, setTestMailTo] = useState("")
   const [error, setError] = useState<string | null>(null)
 
   const [checklistText, setChecklistText] = useState("")
@@ -65,10 +66,12 @@ export default function OffboardingSettingsPage() {
     setSendingTest(true)
     setTestSent(false)
     try {
+      if (!testMailTo || !testMailTo.includes("@")) { alert("Bitte gültige E-Mail-Adresse eingeben"); setSendingTest(false); return }
       const res = await fetch("/api/offboarding/config/test-mail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          to: testMailTo,
           email_subject: emailSubject,
           email_body: emailBody,
         }),
@@ -168,8 +171,15 @@ export default function OffboardingSettingsPage() {
                 ))}
               </div>
             </div>
-            <div className="flex justify-end">
-              <Button variant="outline" size="sm" onClick={sendTestMail} disabled={sendingTest}>
+            <div className="flex items-center gap-2 justify-end">
+              <input
+                type="email"
+                placeholder="empfaenger@firma.de"
+                value={testMailTo}
+                onChange={e => setTestMailTo(e.target.value)}
+                className={`${inp} max-w-xs`}
+              />
+              <Button variant="outline" size="sm" onClick={sendTestMail} disabled={sendingTest || !testMailTo}>
                 {sendingTest ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : testSent ? (

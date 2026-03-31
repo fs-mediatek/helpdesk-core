@@ -82,6 +82,31 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ success: true })
   }
 
+  // Return device
+  if (body.action === "return_device" && body.device_id) {
+    const [device] = await query(
+      "SELECT * FROM offboarding_device_returns WHERE id = ? AND request_id = ?",
+      [body.device_id, id]
+    ) as any[]
+    if (!device) return NextResponse.json({ error: "Gerät nicht gefunden" }, { status: 404 })
+
+    const conditionJson = JSON.stringify(body.condition || {})
+    await pool.execute(
+      `UPDATE offboarding_device_returns SET status = 'returned', condition_notes = ?, return_date = CURDATE(), received_by_id = ? WHERE id = ?`,
+      [conditionJson, session.userId, body.device_id]
+    )
+
+    // Update asset: unassign and set available
+    if (device.asset_id) {
+      await pool.execute(
+        "UPDATE assets SET assigned_to_user_id = NULL, status = 'available' WHERE id = ?",
+        [device.asset_id]
+      )
+    }
+
+    return NextResponse.json({ success: true })
+  }
+
   // Update status
   if (body.status) {
     const validStatuses = ["pending", "in_progress", "completed", "cancelled"]

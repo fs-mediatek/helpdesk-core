@@ -274,7 +274,7 @@ export default function OffboardingDetailPage({ params }: { params: Promise<{ id
                         <td className="py-3 pr-3 text-muted-foreground">{device.asset_tag || "—"}</td>
                         <td className="py-3 pr-3 text-muted-foreground">{device.serial_number || "—"}</td>
                         <td className="py-3 pr-3">
-                          {device.returned ? (
+                          {device.status === 'returned' ? (
                             <div className="flex items-center gap-1.5 text-emerald-600">
                               <CheckCircle2 className="h-4 w-4" />
                               <span className="text-sm">Zurückgegeben</span>
@@ -287,7 +287,7 @@ export default function OffboardingDetailPage({ params }: { params: Promise<{ id
                           {device.return_condition_summary || "—"}
                         </td>
                         <td className="py-3 text-right">
-                          {!device.returned && (
+                          {!device.status === 'returned' && (
                             <Button variant="outline" size="sm" onClick={() => openReturnModal(device)}>
                               Zurücknehmen
                             </Button>
