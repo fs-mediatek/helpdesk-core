@@ -516,9 +516,6 @@ const plugin: HelpdeskPlugin = {
             if (phoneMatch) {
               let phoneNum = phoneMatch[1]
 
-              // Skip if we already have this phone number (avoid duplicates from multi-page headers)
-              if (seenPhones.has(phoneNum)) { i++; continue }
-
               // Extract tariff code (e.g. "SP5", "PG1", "PPO")
               const afterPhone = line.substring(phoneMatch[0].length).trim()
               const tariffMatch = afterPhone.match(/^([A-Z]{2,3}\d?)/)
@@ -535,21 +532,32 @@ const plugin: HelpdeskPlugin = {
                 }
               }
 
-              // The last amount on the next line is typically the total for this phone
-              // Format: phone+tariff  base_price  [conn_costs]  [discount]  \n  total
               const totalNet = amounts.length > 0 ? amounts[amounts.length - 1] : 0
               const basePrice = amounts.length > 1 ? amounts[0] : totalNet
               const discount = amounts.find(a => a < 0) || 0
 
-              seenPhones.add(phoneNum)
-              invoiceLines.push({
-                phone_number: phoneNum,
-                tariff: tariff || null,
-                base_price: basePrice,
-                discount: discount,
-                surcharges: 0,
-                total_net: totalNet,
-              })
+              // If phone already seen (e.g. tariff change mid-month), sum the amounts
+              if (seenPhones.has(phoneNum)) {
+                const existing = invoiceLines.find(l => l.phone_number === phoneNum)
+                if (existing) {
+                  existing.base_price += basePrice
+                  existing.discount += discount
+                  existing.total_net += totalNet
+                  if (tariff && !existing.tariff?.includes(tariff)) {
+                    existing.tariff = existing.tariff ? `${existing.tariff}/${tariff}` : tariff
+                  }
+                }
+              } else {
+                seenPhones.add(phoneNum)
+                invoiceLines.push({
+                  phone_number: phoneNum,
+                  tariff: tariff || null,
+                  base_price: basePrice,
+                  discount: discount,
+                  surcharges: 0,
+                  total_net: totalNet,
+                })
+              }
 
               i += 2 // skip phone line + total line
               continue
