@@ -45,8 +45,9 @@ const coreNavItems: NavItem[] = [
     key: "onboarding", href: "/p/onboarding", label: "On- & Offboarding", icon: UserPlus,
     children: [
       { href: "/p/onboarding/onboarding", label: "Onboarding", emoji: "👤" },
-      { href: "/p/onboarding/offboarding", label: "Offboarding", emoji: "👋" },
+      { href: "/offboarding", label: "Offboarding", emoji: "👋" },
       { href: "/p/onboarding/settings", label: "Konfiguration", emoji: "⚙️", adminOnly: true },
+      { href: "/offboarding/settings", label: "Offb.-Konfiguration", emoji: "⚙️", adminOnly: true },
     ]
   },
   { key: "analytics", href: "/p/ticket-analytics", label: "Auswertungen", icon: BarChart2 },

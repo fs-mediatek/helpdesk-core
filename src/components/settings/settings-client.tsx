@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Building2, Mail, Palette, Save, Loader2, LayoutGrid, Menu, Check, Shield, Plus, Trash2, X,
-  Hash, Pencil, Users, ChevronLeft, ArrowLeft, UserPlus, Phone, MessageCircle, Cloud
+  Hash, Pencil, Users, ChevronLeft, ArrowLeft, UserPlus, UserMinus, Phone, MessageCircle, Cloud
 } from "lucide-react"
 import { NAV_ITEMS_META } from "@/components/layout/sidebar"
 import { fetchRoles, type RoleDef } from "@/lib/roles"
@@ -24,6 +24,7 @@ const SECTIONS = [
   { id: "claude", label: "Claude AI", icon: Shield, desc: "KI-gestützte Ticket-Analyse" },
   { id: "nav", label: "Menü-Sichtbarkeit", icon: Menu, desc: "Navigation nach Rolle steuern" },
   { id: "onboarding", label: "Onboarding", icon: UserPlus, desc: "Status, Jobtitel, Maßnahmen und Rufnummern-Prefix", href: "/p/onboarding/settings" },
+  { id: "offboarding", label: "Offboarding", icon: UserMinus, desc: "Checkliste und E-Mail-Vorlage", href: "/offboarding/settings" },
   { id: "catalog", label: "Produktkatalog", icon: LayoutGrid, desc: "Verwaltungszugang für den Katalog" },
   { id: "branding", label: "Branding", icon: Palette, desc: "Farben und Logo anpassen" },
   { id: "chatbot", label: "IT-Assistent", icon: MessageCircle, desc: "Chatbot-Begrüßung, Fallback und vordefinierte Antworten" },
