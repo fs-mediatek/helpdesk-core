@@ -14,11 +14,18 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   const { name, asset_tag, type, platform, status, model, manufacturer, serial_number, notes,
           purchase_price, supplier_id, invoice_number, commissioned_at, assigned_to_user_id } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: "Name erforderlich" }, { status: 400 })
+  // Auto-set status based on assignment
+  let effectiveStatus = status || "available"
+  if (assigned_to_user_id) {
+    if (effectiveStatus === "available") effectiveStatus = "assigned"
+  } else {
+    if (effectiveStatus === "assigned") effectiveStatus = "available"
+  }
   await query(
     `UPDATE assets SET name=?, asset_tag=?, type=?, platform=?, status=?, model=?, manufacturer=?,
      serial_number=?, notes=?, purchase_price=?, supplier_id=?, invoice_number=?, commissioned_at=?, assigned_to_user_id=?
      WHERE id=?`,
-    [name.trim(), asset_tag || null, type || null, platform || "other", status || "available",
+    [name.trim(), asset_tag || null, type || null, platform || "other", effectiveStatus,
      model || null, manufacturer || null, serial_number || null, notes || null,
      purchase_price || null, supplier_id || null, invoice_number || null, commissioned_at || null,
      assigned_to_user_id || null, id]
