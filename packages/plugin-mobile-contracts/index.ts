@@ -480,46 +480,80 @@ const plugin: HelpdeskPlugin = {
         const text = pdfData.text
 
         // Extract invoice date
-        const dateMatch = text.match(/Rechnungsdatum[:\s]+(\d{2}\.\d{2}\.\d{4})/i)
+        const dateMatch = text.match(/Datum[:\s]+(\d{2}\.\d{2}\.\d{4})/i)
         const invoiceDate = dateMatch ? dateMatch[1] : null
 
-        // Parse phone number lines from Vodafone invoice format
+        // Extract total amounts from invoice header
+        const grossMatch = text.match(/(?:Bruttorechnungsbetrag|zu zahlenden Betrag)[^\d]*?([\d.,]+)\s*EUR/i)
+        const netMatch = text.match(/Nettorechnungsbetrag[^\d]*?([\d.,]+)/i)
+        const invoiceTotalGross = grossMatch ? parseFloat(grossMatch[1].replace(/\./g, '').replace(',', '.')) : 0
+        const invoiceTotalNet = netMatch ? parseFloat(netMatch[1].replace(/\./g, '').replace(',', '.')) : 0
+
+        // Parse phone number lines from Vodafone "Gesamtübersicht" section only
         const lines = text.split('\n')
         const invoiceLines: any[] = []
+        const seenPhones = new Set<string>()
 
-        const phoneRegex = /^(01[5-7][0-9][\s/]?\d{3,4}[\s]?\d{3,4})/
-        const amountRegex = /(-?\d+[.,]\d{2})/g
+        // Find the "Gesamtübersicht" section - this is where per-phone totals are listed
+        let inOverview = false
+        const phoneRegex = /^(0\d{2,4}\/\d{4,})/
+        const amountRegex = /(-?\d+[.,]\d{4}|-?\d+[.,]\d{2})/g
 
         let i = 0
         while (i < lines.length) {
           const line = lines[i].trim()
-          const phoneMatch = line.match(phoneRegex)
 
-          if (phoneMatch) {
-            let phoneNum = phoneMatch[1].replace(/\s+/g, '')
-            if (!phoneNum.includes('/')) {
-              const prefixLen = phoneNum.startsWith('015') ? 5 : 4
-              phoneNum = phoneNum.substring(0, prefixLen) + '/' + phoneNum.substring(prefixLen)
-            }
+          // Detect start of "Gesamtübersicht" section
+          if (line.includes('Gesamtübersicht') || line.includes('Anlage zur Rechnung')) {
+            inOverview = true
+            i++
+            continue
+          }
 
-            const tariff = line.substring(phoneMatch[0].length).trim()
+          // Only parse phone lines in the overview section
+          if (inOverview) {
+            const phoneMatch = line.match(phoneRegex)
+            if (phoneMatch) {
+              let phoneNum = phoneMatch[1]
 
-            let amounts: number[] = []
-            for (let j = i; j < Math.min(i + 3, lines.length); j++) {
-              const lineAmounts = lines[j].match(amountRegex)
-              if (lineAmounts) {
-                amounts = amounts.concat(lineAmounts.map((a: string) => parseFloat(a.replace(',', '.'))))
+              // Skip if we already have this phone number (avoid duplicates from multi-page headers)
+              if (seenPhones.has(phoneNum)) { i++; continue }
+
+              // Extract tariff code (e.g. "SP5", "PG1", "PPO")
+              const afterPhone = line.substring(phoneMatch[0].length).trim()
+              const tariffMatch = afterPhone.match(/^([A-Z]{2,3}\d?)/)
+              const tariff = tariffMatch ? tariffMatch[1] : null
+
+              // Extract all amounts from this line and the next line
+              const amounts: number[] = []
+              for (let j = i; j <= Math.min(i + 1, lines.length - 1); j++) {
+                const lineAmounts = lines[j].match(amountRegex)
+                if (lineAmounts) {
+                  lineAmounts.forEach((a: string) => {
+                    amounts.push(parseFloat(a.replace(/\./g, '').replace(',', '.')))
+                  })
+                }
               }
-            }
 
-            invoiceLines.push({
-              phone_number: phoneNum,
-              tariff: tariff || null,
-              base_price: amounts[0] || 0,
-              discount: amounts.length > 2 ? amounts[1] || 0 : 0,
-              surcharges: amounts.length > 3 ? amounts[2] || 0 : 0,
-              total_net: amounts[amounts.length - 1] || 0,
-            })
+              // The last amount on the next line is typically the total for this phone
+              // Format: phone+tariff  base_price  [conn_costs]  [discount]  \n  total
+              const totalNet = amounts.length > 0 ? amounts[amounts.length - 1] : 0
+              const basePrice = amounts.length > 1 ? amounts[0] : totalNet
+              const discount = amounts.find(a => a < 0) || 0
+
+              seenPhones.add(phoneNum)
+              invoiceLines.push({
+                phone_number: phoneNum,
+                tariff: tariff || null,
+                base_price: basePrice,
+                discount: discount,
+                surcharges: 0,
+                total_net: totalNet,
+              })
+
+              i += 2 // skip phone line + total line
+              continue
+            }
           }
           i++
         }
@@ -529,8 +563,9 @@ const plugin: HelpdeskPlugin = {
           return `${y}-${m}-${d}`
         })() : null
 
-        const totalNet = invoiceLines.reduce((s, l) => s + l.total_net, 0)
-        const totalGross = totalNet * 1.19
+        // Use the invoice header totals if available, otherwise sum from lines
+        const totalNet = invoiceTotalNet || invoiceLines.reduce((s, l) => s + l.total_net, 0)
+        const totalGross = invoiceTotalGross || totalNet * 1.19
 
         const invoiceId = await ctx.db.insert(
           'INSERT INTO mobile_invoices (filename, invoice_month, invoice_year, invoice_date, total_net, total_gross, line_count, imported_by) VALUES (?,?,?,?,?,?,?,?)',
