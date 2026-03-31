@@ -108,6 +108,7 @@ const plugin: HelpdeskPlugin = {
       const search = ctx.searchParams.get('search')
       const cost_center = ctx.searchParams.get('cost_center')
       const status = ctx.searchParams.get('status')
+      const provider = ctx.searchParams.get('provider')
       const page = parseInt(ctx.searchParams.get('page') || '1')
       const limit = parseInt(ctx.searchParams.get('limit') || '50')
       const offset = (page - 1) * limit
@@ -126,6 +127,10 @@ const plugin: HelpdeskPlugin = {
       if (status) {
         where += ' AND c.status = ?'
         params.push(status)
+      }
+      if (provider) {
+        where += ' AND c.provider = ?'
+        params.push(provider)
       }
 
       const countResult = await ctx.db.queryOne<{ total: number }>(
@@ -152,15 +157,24 @@ const plugin: HelpdeskPlugin = {
     // CONTRACTS — STATS
     // ============================================
     'GET /contracts/stats': async (_req, ctx) => {
-      const total = await ctx.db.queryOne<{ c: number }>('SELECT COUNT(*) as c FROM mobile_contracts')
-      const active = await ctx.db.queryOne<{ c: number }>("SELECT COUNT(*) as c FROM mobile_contracts WHERE status != 'Gekündigt'")
-      const cancelled = await ctx.db.queryOne<{ c: number }>("SELECT COUNT(*) as c FROM mobile_contracts WHERE status = 'Gekündigt'")
-      const totalCostGross = await ctx.db.queryOne<{ s: string }>("SELECT COALESCE(SUM(total_gross), 0) as s FROM mobile_contracts WHERE status != 'Gekündigt'")
+      const provider = ctx.searchParams.get('provider')
+      const pWhere = provider ? " AND provider = ?" : ""
+      const pParams = provider ? [provider] : []
+
+      const total = await ctx.db.queryOne<{ c: number }>(`SELECT COUNT(*) as c FROM mobile_contracts WHERE 1=1${pWhere}`, pParams)
+      const active = await ctx.db.queryOne<{ c: number }>(`SELECT COUNT(*) as c FROM mobile_contracts WHERE status != 'Gekündigt'${pWhere}`, pParams)
+      const cancelled = await ctx.db.queryOne<{ c: number }>(`SELECT COUNT(*) as c FROM mobile_contracts WHERE status = 'Gekündigt'${pWhere}`, pParams)
+      const totalCostGross = await ctx.db.queryOne<{ s: string }>(`SELECT COALESCE(SUM(total_gross), 0) as s FROM mobile_contracts WHERE status != 'Gekündigt'${pWhere}`, pParams)
 
       const costCenters = await ctx.db.query(
         `SELECT cost_center_1 as cc, COUNT(*) as cnt, SUM(total_gross) as gross
-         FROM mobile_contracts WHERE status != 'Gekündigt' AND cost_center_1 IS NOT NULL AND cost_center_1 != ''
-         GROUP BY cost_center_1 ORDER BY gross DESC`
+         FROM mobile_contracts WHERE status != 'Gekündigt' AND cost_center_1 IS NOT NULL AND cost_center_1 != ''${pWhere}
+         GROUP BY cost_center_1 ORDER BY gross DESC`,
+        pParams
+      )
+
+      const providers = await ctx.db.query(
+        "SELECT provider, COUNT(*) as cnt FROM mobile_contracts WHERE provider IS NOT NULL GROUP BY provider ORDER BY provider"
       )
 
       return NextResponse.json({
@@ -171,6 +185,7 @@ const plugin: HelpdeskPlugin = {
           cancelled: cancelled?.c ?? 0,
           monthly_gross: parseFloat(totalCostGross?.s ?? '0'),
           cost_centers: costCenters,
+          providers: providers,
         },
       })
     },

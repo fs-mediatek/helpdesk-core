@@ -862,6 +862,7 @@ function VertraegeTab() {
   const [search, setSearch] = useState('')
   const [costCenter, setCostCenter] = useState('')
   const [status, setStatus] = useState('')
+  const [provider, setProvider] = useState('')
   const [page, setPage] = useState(1)
   const [pagination, setPagination] = useState({ pages: 1, total: 0 })
   const [detailId, setDetailId] = useState<number | null>(null)
@@ -872,8 +873,10 @@ function VertraegeTab() {
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const loadStats = useCallback(() => {
-    apiFetch('/contracts/stats').then(r => { if (r.success) setStats(r.data) })
-  }, [])
+    const p = new URLSearchParams()
+    if (provider) p.set('provider', provider)
+    apiFetch('/contracts/stats?' + p.toString()).then(r => { if (r.success) setStats(r.data) })
+  }, [provider])
 
   const loadContracts = useCallback(() => {
     setLoading(true)
@@ -881,6 +884,7 @@ function VertraegeTab() {
     if (search) p.set('search', search)
     if (costCenter) p.set('cost_center', costCenter)
     if (status) p.set('status', status)
+    if (provider) p.set('provider', provider)
     apiFetch('/contracts?' + p.toString()).then(r => {
       if (r.success) {
         setContracts(r.data)
@@ -888,7 +892,7 @@ function VertraegeTab() {
       }
       setLoading(false)
     })
-  }, [search, costCenter, status, page])
+  }, [search, costCenter, status, provider, page])
 
   useEffect(() => { loadStats() }, [loadStats])
   useEffect(() => { loadContracts() }, [loadContracts])
@@ -948,6 +952,12 @@ function VertraegeTab() {
             onChange={e => handleSearch(e.target.value)}
           />
         </div>
+        <select className="input w-auto" value={provider} onChange={e => { setProvider(e.target.value); setPage(1) }}>
+          <option value="">Alle Provider</option>
+          {(stats as any)?.providers?.map((p: any) => (
+            <option key={p.provider} value={p.provider}>{p.provider} ({p.cnt})</option>
+          ))}
+        </select>
         <select className="input w-auto" value={costCenter} onChange={e => { setCostCenter(e.target.value); setPage(1) }}>
           <option value="">Alle Kostenstellen</option>
           {stats?.cost_centers?.filter(cc => cc.cc).map(cc => (
