@@ -357,13 +357,16 @@ export async function syncCommentToZammad(ticketNumber: string, body: string, is
     const ticket = await queryOne<any>("SELECT zammad_id FROM tickets WHERE ticket_number = ?", [ticketNumber])
     if (!ticket?.zammad_id) return false
 
+    // Internal comments → "note" (no email), public comments → "email" (sends to customer)
+    const articleType = isInternal ? "note" : "email"
+
     await zammadFetch(`/ticket_articles`, {
       method: "POST",
       body: JSON.stringify({
         ticket_id: ticket.zammad_id,
         body: body,
         content_type: "text/html",
-        type: "note",
+        type: articleType,
         internal: isInternal,
         sender: "Agent",
         subject: `Kommentar von ${authorName}`,
