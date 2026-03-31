@@ -4,7 +4,18 @@ import { signToken } from "@/lib/auth"
 import { query, queryOne } from "@/lib/db"
 import bcrypt from "bcryptjs"
 
+async function getBaseUrl(fallback: string): Promise<string> {
+  try {
+    const rows = await query("SELECT value FROM settings WHERE key_name = 'app_url'") as any[]
+    return (process.env.APP_URL || rows[0]?.value || fallback).replace(/\/+$/, '')
+  } catch {
+    return (process.env.APP_URL || fallback).replace(/\/+$/, '')
+  }
+}
+
 export async function GET(req: NextRequest) {
+  const baseUrl = await getBaseUrl(req.nextUrl.origin)
+
   try {
     const code = req.nextUrl.searchParams.get("code")
     const state = req.nextUrl.searchParams.get("state")
@@ -12,22 +23,19 @@ export async function GET(req: NextRequest) {
     const errorDesc = req.nextUrl.searchParams.get("error_description")
 
     if (error) {
-      return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(errorDesc || error)}`, req.nextUrl.origin))
+      return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(errorDesc || error)}`, baseUrl))
     }
 
     if (!code) {
-      return NextResponse.redirect(new URL("/login?error=Kein+Autorisierungscode+erhalten", req.nextUrl.origin))
+      return NextResponse.redirect(new URL("/login?error=Kein+Autorisierungscode+erhalten", baseUrl))
     }
 
     // Verify state
     const savedState = req.cookies.get("ms_oauth_state")?.value
     if (!savedState || savedState !== state) {
-      return NextResponse.redirect(new URL("/login?error=Ungültiger+OAuth-State", req.nextUrl.origin))
+      return NextResponse.redirect(new URL("/login?error=Ungültiger+OAuth-State", baseUrl))
     }
 
-    // Use APP_URL to match the redirect URI sent during login
-    const appUrlRows = await query("SELECT value FROM settings WHERE key_name = 'app_url'") as any[]
-    const baseUrl = (process.env.APP_URL || appUrlRows[0]?.value || req.nextUrl.origin).replace(/\/+$/, '')
     const redirectUri = `${baseUrl}/api/auth/microsoft/callback`
 
     // Exchange code for tokens
@@ -42,7 +50,7 @@ export async function GET(req: NextRequest) {
     const phone = profile.businessPhones?.[0] || profile.mobilePhone || null
 
     if (!email) {
-      return NextResponse.redirect(new URL("/login?error=Keine+E-Mail+vom+Microsoft-Konto+erhalten", req.nextUrl.origin))
+      return NextResponse.redirect(new URL("/login?error=Keine+E-Mail+vom+Microsoft-Konto+erhalten", baseUrl))
     }
 
     // Find or create user
@@ -60,7 +68,7 @@ export async function GET(req: NextRequest) {
 
       user = await queryOne<any>("SELECT * FROM users WHERE email = ?", [email])
     } else if (!user.active) {
-      return NextResponse.redirect(new URL("/login?error=Konto+ist+deaktiviert", req.nextUrl.origin))
+      return NextResponse.redirect(new URL("/login?error=Konto+ist+deaktiviert", baseUrl))
     } else {
       // Update name/department/phone from Microsoft profile if changed
       await query(
@@ -77,10 +85,10 @@ export async function GET(req: NextRequest) {
       role: user.role,
     })
 
-    const response = NextResponse.redirect(new URL("/dashboard", req.nextUrl.origin))
+    const response = NextResponse.redirect(new URL("/dashboard", baseUrl))
     response.cookies.set("token", token, {
       httpOnly: true,
-      secure: req.nextUrl.protocol === "https:",
+      secure: baseUrl.startsWith("https"),
       sameSite: "lax",
       maxAge: 86400,
       path: "/",
@@ -91,7 +99,7 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error("[Microsoft Callback Error]", err)
     return NextResponse.redirect(
-      new URL(`/login?error=${encodeURIComponent(err.message || "Microsoft-Anmeldung fehlgeschlagen")}`, req.nextUrl.origin)
+      new URL(`/login?error=${encodeURIComponent(err.message || "Microsoft-Anmeldung fehlgeschlagen")}`, baseUrl)
     )
   }
 }
