@@ -167,7 +167,7 @@ export default function NewOffboardingPage() {
                         )}
                         <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
                           <Package className="h-3 w-3" />
-                          <span>{user.device_count ?? 0} Geräte zugewiesen</span>
+                          <span>{user.asset_count ?? 0} Geräte zugewiesen</span>
                         </div>
                       </div>
                     </button>
@@ -205,7 +205,7 @@ export default function NewOffboardingPage() {
                 </div>
                 <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                   <Package className="h-4 w-4" />
-                  <span>{selectedUser.device_count ?? 0} Geräte</span>
+                  <span>{selectedUser.asset_count ?? 0} Geräte</span>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => setSelectedUser(null)}>
                   Ändern
