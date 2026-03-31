@@ -415,12 +415,21 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
                   size="sm"
                   className="w-full gap-2"
                   onClick={async () => {
+                    // Build KB content from ticket description + public comments
+                    let content = `<h3>Problembeschreibung</h3>\n${ticket.description || ""}`
+                    const publicComments = (ticket.comments || []).filter((c: any) => !c.is_internal && !c.is_system)
+                    if (publicComments.length > 0) {
+                      content += `\n<h3>Lösung</h3>\n`
+                      content += publicComments.map((c: any) =>
+                        `<div>${c.content}</div>`
+                      ).join("\n")
+                    }
                     const res = await fetch("/api/kb", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
                         title: ticket.title,
-                        content: ticket.description || "",
+                        content,
                         status: "draft",
                         tags: [ticket.category, ticket.ticket_number].filter(Boolean).join(","),
                       }),
