@@ -806,11 +806,6 @@ export default function OnboardingPage({ slug }: { slug: string[] }) {
             <UserPlus className="w-4 h-4" />
             Neues Onboarding
           </a>
-          <a href="/onboarding/new?type=offboarding"
-            className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 transition-colors">
-            <LogOut className="w-4 h-4" />
-            Neues Offboarding
-          </a>
         </div>
       </div>
 
