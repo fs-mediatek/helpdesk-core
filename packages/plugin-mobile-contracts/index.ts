@@ -496,6 +496,7 @@ const plugin: HelpdeskPlugin = {
 
         // Find the "Gesamtübersicht" section - this is where per-phone totals are listed
         let inOverview = false
+        let overviewSections = 0
         const phoneRegex = /^(0\d{2,4}\/\d{4,})/
         const amountRegex = /(-?\d+[.,]\d{4}|-?\d+[.,]\d{2})/g
 
@@ -503,8 +504,16 @@ const plugin: HelpdeskPlugin = {
         while (i < lines.length) {
           const line = lines[i].trim()
 
-          // Detect start of "Gesamtübersicht" section
-          if (line.includes('Gesamtübersicht') || line.includes('Anlage zur Rechnung')) {
+          // Detect start of "Gesamtübersicht" section — only use the first one
+          if (line.includes('Gesamtübersicht')) {
+            overviewSections++
+            if (overviewSections > 1) break // Stop at second overview (compact repeat)
+            inOverview = true
+            i++
+            continue
+          }
+          if (line.includes('Anlage zur Rechnung') && overviewSections === 0) {
+            overviewSections = 1
             inOverview = true
             i++
             continue
@@ -516,29 +525,44 @@ const plugin: HelpdeskPlugin = {
             if (phoneMatch) {
               let phoneNum = phoneMatch[1]
 
-              // Extract tariff code (e.g. "SP5", "PG1", "PPO")
+              // Extract tariff code — may include prefix like "27/" for partial months
               const afterPhone = line.substring(phoneMatch[0].length).trim()
-              const tariffMatch = afterPhone.match(/^([A-Z]{2,3}\d?)/)
+              const tariffMatch = afterPhone.match(/^(?:\d+\/)?([A-Z]{2,3}\d?)/)
               const tariff = tariffMatch ? tariffMatch[1] : null
 
-              // Extract all amounts from this line and the next line
-              const amounts: number[] = []
-              for (let j = i; j <= Math.min(i + 1, lines.length - 1); j++) {
-                const lineAmounts = lines[j].match(amountRegex)
-                if (lineAmounts) {
-                  lineAmounts.forEach((a: string) => {
-                    amounts.push(parseFloat(a.replace(/\./g, '').replace(',', '.')))
-                  })
-                }
+              // Extract amounts from the current line
+              const lineAmounts = line.match(amountRegex)
+              const currentAmounts = lineAmounts ? lineAmounts.map((a: string) => parseFloat(a.replace(/\./g, '').replace(',', '.'))) : []
+
+              // Check if next line is a standalone total (just a number, not a phone line)
+              const nextLine = (i + 1 < lines.length) ? lines[i + 1].trim() : ''
+              const nextIsTotal = /^-?[\d.,]+$/.test(nextLine) && !phoneRegex.test(nextLine)
+
+              let totalNet: number
+              let basePrice: number
+              let discount: number
+
+              if (nextIsTotal) {
+                // Standard format: phone line has base+discount, next line has total
+                const nextAmounts = nextLine.match(amountRegex)
+                totalNet = nextAmounts ? parseFloat(nextAmounts[nextAmounts.length - 1].replace(/\./g, '').replace(',', '.')) : 0
+                basePrice = currentAmounts.length > 0 ? currentAmounts[0] : totalNet
+                discount = currentAmounts.find(a => a < 0) || 0
+                i += 2
+              } else {
+                // Inline format: total is the last amount on the same line (e.g. partial months)
+                totalNet = currentAmounts.length > 0 ? currentAmounts[currentAmounts.length - 1] : 0
+                basePrice = currentAmounts.length > 1 ? currentAmounts[0] : totalNet
+                discount = currentAmounts.find(a => a < 0) || 0
+                i += 1
               }
 
-              const totalNet = amounts.length > 0 ? amounts[amounts.length - 1] : 0
-              const basePrice = amounts.length > 1 ? amounts[0] : totalNet
-              const discount = amounts.find(a => a < 0) || 0
+              // Normalize phone number (remove partial month prefix like " 1/")
+              const cleanPhone = phoneNum.replace(/\s+\d+\//, '')
 
               // If phone already seen (e.g. tariff change mid-month), sum the amounts
-              if (seenPhones.has(phoneNum)) {
-                const existing = invoiceLines.find(l => l.phone_number === phoneNum)
+              if (seenPhones.has(cleanPhone)) {
+                const existing = invoiceLines.find(l => l.phone_number === cleanPhone)
                 if (existing) {
                   existing.base_price += basePrice
                   existing.discount += discount
@@ -548,9 +572,9 @@ const plugin: HelpdeskPlugin = {
                   }
                 }
               } else {
-                seenPhones.add(phoneNum)
+                seenPhones.add(cleanPhone)
                 invoiceLines.push({
-                  phone_number: phoneNum,
+                  phone_number: cleanPhone,
                   tariff: tariff || null,
                   base_price: basePrice,
                   discount: discount,
@@ -559,7 +583,6 @@ const plugin: HelpdeskPlugin = {
                 })
               }
 
-              i += 2 // skip phone line + total line
               continue
             }
           }
