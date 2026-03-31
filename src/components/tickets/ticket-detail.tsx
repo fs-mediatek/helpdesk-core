@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Send, Lock, User, Calendar, Tag, Forward, X, Loader2, Ban, Sparkles, CheckSquare, Plus, Trash2, Pencil, Users, TrendingUp, ShieldAlert } from "lucide-react"
+import { ArrowLeft, Send, Lock, User, Calendar, Tag, Forward, X, Loader2, Ban, Sparkles, CheckSquare, Plus, Trash2, Pencil, Users, TrendingUp, ShieldAlert, BookOpen } from "lucide-react"
 import Link from "next/link"
 import { formatDistanceToNow, format } from "date-fns"
 import { de } from "date-fns/locale"
@@ -405,6 +405,41 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
               </div>
             </CardContent>
           </Card>
+
+          {/* KB Article from Ticket */}
+          {isAdmin && (status === "resolved" || status === "closed") && (
+            <Card>
+              <CardContent className="pt-5 pb-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2"
+                  onClick={async () => {
+                    const res = await fetch("/api/kb", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        title: ticket.title,
+                        content: ticket.description || "",
+                        status: "draft",
+                        tags: [ticket.category, ticket.ticket_number].filter(Boolean).join(","),
+                      }),
+                    })
+                    const data = await res.json()
+                    if (res.ok) {
+                      router.push(`/kb/${data.id}`)
+                    } else {
+                      alert(`Fehler: ${data.error || "KB-Artikel konnte nicht erstellt werden"}`)
+                    }
+                  }}
+                >
+                  <BookOpen className="h-4 w-4" />
+                  In Wissensdatenbank übernehmen
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2 text-center">Erstellt einen Entwurf aus diesem Ticket</p>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Checklist */}
           <TicketChecklist ticketId={ticket.id} isAdmin={isAdmin} />
