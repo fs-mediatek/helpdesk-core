@@ -16,7 +16,10 @@ import { de } from "date-fns/locale"
 function ForwardModal({ ticket, onClose }: { ticket: any; onClose: () => void }) {
   const [to, setTo] = useState("")
   const [subject, setSubject] = useState(`Ticket #${ticket.ticket_number}: ${ticket.title}`)
-  const [body, setBody] = useState(`Sehr geehrte Damen und Herren,\n\nbitte um Unterstützung bei folgendem Anliegen:\n\n${ticket.description || ""}\n\nMit freundlichen Grüßen\nIT Helpdesk`)
+  const [body, setBody] = useState(() => {
+    const desc = (ticket.description || "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'").replace(/\n{3,}/g, "\n\n").trim()
+    return `Sehr geehrte Damen und Herren,\n\nbitte um Unterstützung bei folgendem Anliegen:\n\n${desc}\n\nMit freundlichen Grüßen\nIT Helpdesk`
+  })
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
