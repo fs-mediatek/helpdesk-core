@@ -23,9 +23,10 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   const { id } = await params
 
   const devices = await query(
-    `SELECT d.*, u.name as received_by_name
+    `SELECT d.*, u.name as received_by_name, a.platform as asset_platform, a.type as asset_type
      FROM offboarding_device_returns d
      LEFT JOIN users u ON d.received_by_id = u.id
+     LEFT JOIN assets a ON d.asset_id = a.id
      WHERE d.request_id = ?
      ORDER BY d.id ASC`,
     [id]

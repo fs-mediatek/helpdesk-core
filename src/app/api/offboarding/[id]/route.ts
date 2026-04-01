@@ -37,9 +37,12 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
     [id]
   )
 
-  // Get device returns
+  // Get device returns (JOIN with assets for platform/type info)
   const devices = await query(
-    "SELECT * FROM offboarding_device_returns WHERE request_id = ? ORDER BY id ASC",
+    `SELECT d.*, a.platform as asset_platform, a.type as asset_type
+     FROM offboarding_device_returns d
+     LEFT JOIN assets a ON d.asset_id = a.id
+     WHERE d.request_id = ? ORDER BY d.id ASC`,
     [id]
   )
 
@@ -163,7 +166,10 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
     ) as any[]
     if (!device) return NextResponse.json({ error: "Gerät nicht gefunden" }, { status: 404 })
 
-    const conditionJson = JSON.stringify(body.condition || {})
+    const conditionData: Record<string, any> = { ...(body.condition || {}) }
+    if (body.note) conditionData.notes = body.note
+    if (body.photos && Array.isArray(body.photos)) conditionData.photos = body.photos
+    const conditionJson = JSON.stringify(conditionData)
     await pool.execute(
       `UPDATE offboarding_device_returns SET status = 'returned', condition_notes = ?, return_date = CURDATE(), received_by_id = ? WHERE id = ?`,
       [conditionJson, session.userId, body.device_id]

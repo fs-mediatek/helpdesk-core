@@ -3,7 +3,7 @@ import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
 import {
   ArrowLeft, Loader2, UserMinus, CheckCircle2, Package, Send, Calendar,
-  Mail, Building2, User, Clock, FileText, Settings, Search
+  Mail, Building2, User, Clock, FileText, Settings, Search, Upload, X, Camera
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -26,20 +26,101 @@ const EXIT_REASON_LABELS: Record<string, string> = {
   sonstige: "Sonstige",
 }
 
-const CONDITION_OPTIONS = [
-  { value: "einwandfrei", label: "Einwandfrei" },
-  { value: "gebrauchsspuren", label: "Gebrauchsspuren" },
-  { value: "beschaedigt", label: "Beschädigt" },
-  { value: "fehlt", label: "Fehlt" },
+type ConditionField = { key: string; label: string; options: { value: string; label: string }[] }
+
+const SMARTPHONE_FIELDS: ConditionField[] = [
+  { key: "gehaeuse", label: "Gehäuse", options: [
+    { value: "einwandfrei", label: "Einwandfrei" }, { value: "gebrauchsspuren", label: "Gebrauchsspuren" }, { value: "beschaedigt", label: "Beschädigt" },
+  ]},
+  { key: "display", label: "Display", options: [
+    { value: "einwandfrei", label: "Einwandfrei" }, { value: "kratzer", label: "Kratzer" }, { value: "beschaedigt", label: "Beschädigt" }, { value: "defekt", label: "Defekt" },
+  ]},
+  { key: "ladekabel_netzteil", label: "Ladekabel + Netzteil", options: [
+    { value: "vorhanden", label: "Vorhanden" }, { value: "fehlt", label: "Fehlt" }, { value: "defekt", label: "Defekt" },
+  ]},
+  { key: "sim_karte", label: "SIM-Karte", options: [
+    { value: "entfernt", label: "Entfernt" }, { value: "noch_eingelegt", label: "Noch eingelegt" }, { value: "nicht_vorhanden", label: "Nicht vorhanden" },
+  ]},
+  { key: "schutzhuelle", label: "Schutzhülle", options: [
+    { value: "vorhanden", label: "Vorhanden" }, { value: "fehlt", label: "Fehlt" }, { value: "beschaedigt", label: "Beschädigt" },
+  ]},
 ]
 
-const CONDITION_FIELDS = [
-  { key: "gehaeuse", label: "Gehäuse" },
-  { key: "display", label: "Display" },
-  { key: "tastatur", label: "Tastatur" },
-  { key: "ladegeraet", label: "Ladegerät" },
-  { key: "zubehoer", label: "Zubehör" },
+const LAPTOP_FIELDS: ConditionField[] = [
+  { key: "gehaeuse", label: "Gehäuse", options: [
+    { value: "einwandfrei", label: "Einwandfrei" }, { value: "gebrauchsspuren", label: "Gebrauchsspuren" }, { value: "beschaedigt", label: "Beschädigt" },
+  ]},
+  { key: "display", label: "Display", options: [
+    { value: "einwandfrei", label: "Einwandfrei" }, { value: "kratzer", label: "Kratzer" }, { value: "beschaedigt", label: "Beschädigt" }, { value: "defekt", label: "Defekt" },
+  ]},
+  { key: "tastatur", label: "Tastatur", options: [
+    { value: "einwandfrei", label: "Einwandfrei" }, { value: "abgenutzt", label: "Abgenutzt" }, { value: "defekt", label: "Defekt" },
+  ]},
+  { key: "touchpad", label: "Touchpad", options: [
+    { value: "einwandfrei", label: "Einwandfrei" }, { value: "defekt", label: "Defekt" },
+  ]},
+  { key: "ladekabel_netzteil", label: "Ladekabel + Netzteil", options: [
+    { value: "vorhanden", label: "Vorhanden" }, { value: "fehlt", label: "Fehlt" }, { value: "defekt", label: "Defekt" },
+  ]},
+  { key: "tasche_rucksack", label: "Tasche/Rucksack", options: [
+    { value: "vorhanden", label: "Vorhanden" }, { value: "fehlt", label: "Fehlt" },
+  ]},
+  { key: "dockingstation", label: "Dockingstation", options: [
+    { value: "vorhanden", label: "Vorhanden" }, { value: "fehlt", label: "Fehlt" }, { value: "nicht_zugehoerig", label: "Nicht zugehörig" },
+  ]},
+  { key: "maus", label: "Maus", options: [
+    { value: "vorhanden", label: "Vorhanden" }, { value: "fehlt", label: "Fehlt" },
+  ]},
 ]
+
+const MONITOR_FIELDS: ConditionField[] = [
+  { key: "gehaeuse", label: "Gehäuse", options: [
+    { value: "einwandfrei", label: "Einwandfrei" }, { value: "gebrauchsspuren", label: "Gebrauchsspuren" }, { value: "beschaedigt", label: "Beschädigt" },
+  ]},
+  { key: "display_oberflaeche", label: "Display/Oberfläche", options: [
+    { value: "einwandfrei", label: "Einwandfrei" }, { value: "kratzer", label: "Kratzer" }, { value: "beschaedigt", label: "Beschädigt" },
+  ]},
+  { key: "kabel", label: "Kabel", options: [
+    { value: "vorhanden", label: "Vorhanden" }, { value: "fehlt", label: "Fehlt" },
+  ]},
+  { key: "standfuss_halterung", label: "Standfuß/Halterung", options: [
+    { value: "vorhanden", label: "Vorhanden" }, { value: "fehlt", label: "Fehlt" },
+  ]},
+]
+
+const DEFAULT_FIELDS: ConditionField[] = [
+  { key: "gehaeuse", label: "Gehäuse", options: [
+    { value: "einwandfrei", label: "Einwandfrei" }, { value: "gebrauchsspuren", label: "Gebrauchsspuren" }, { value: "beschaedigt", label: "Beschädigt" },
+  ]},
+  { key: "zubehoer", label: "Zubehör", options: [
+    { value: "vollstaendig", label: "Vollständig" }, { value: "unvollstaendig", label: "Unvollständig" }, { value: "fehlt", label: "Fehlt" },
+  ]},
+  { key: "kabel", label: "Kabel", options: [
+    { value: "vorhanden", label: "Vorhanden" }, { value: "fehlt", label: "Fehlt" },
+  ]},
+]
+
+function getConditionFields(device: any): ConditionField[] {
+  const platform = (device.asset_platform || device.platform || "").toLowerCase()
+  const type = (device.asset_type || device.type || "").toLowerCase()
+  const name = (device.device_name || device.name || "").toLowerCase()
+
+  // Smartphone/Tablet
+  if (platform === "ios" || platform === "android") return SMARTPHONE_FIELDS
+
+  // Laptop
+  if (platform === "windows" || platform === "macos") return LAPTOP_FIELDS
+
+  // Monitor/Peripherie
+  if (platform === "other" || type.includes("monitor") || type.includes("dock") || type.includes("board")
+      || name.includes("monitor") || name.includes("dock") || name.includes("board")) return MONITOR_FIELDS
+
+  return DEFAULT_FIELDS
+}
+
+function isDamageValue(value: string): boolean {
+  return value === "beschaedigt" || value === "defekt"
+}
 
 const inp = "flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
@@ -53,6 +134,9 @@ export default function OffboardingDetailPage({ params }: { params: Promise<{ id
   const [returnCondition, setReturnCondition] = useState<Record<string, string>>({})
   const [returnNote, setReturnNote] = useState("")
   const [returning, setReturning] = useState(false)
+  const [returnPhotos, setReturnPhotos] = useState<{ field: string; url: string }[]>([])
+  const [uploadingField, setUploadingField] = useState<string | null>(null)
+  const [conditionFields, setConditionFields] = useState<ConditionField[]>(DEFAULT_FIELDS)
   const [sendingMail, setSendingMail] = useState(false)
   const [showMailForm, setShowMailForm] = useState(false)
   const [privateEmail, setPrivateEmail] = useState("")
@@ -79,7 +163,7 @@ export default function OffboardingDetailPage({ params }: { params: Promise<{ id
   const devices = data.devices || []
   const completedChecklist = checklist.filter((c: any) => c.done).length
   const totalChecklist = checklist.length
-  const devicesReturned = devices.filter((d: any) => d.returned).length
+  const devicesReturned = devices.filter((d: any) => d.status === "returned").length
   const devicesTotal = devices.length
   const allDevicesReturned = devicesTotal > 0 && devicesReturned === devicesTotal
   const roles = session?.role?.split(",").map((r: string) => r.trim()) || []
@@ -96,10 +180,37 @@ export default function OffboardingDetailPage({ params }: { params: Promise<{ id
 
   const openReturnModal = (device: any) => {
     setReturnModal(device)
+    const fields = getConditionFields(device)
+    setConditionFields(fields)
     const initial: Record<string, string> = {}
-    CONDITION_FIELDS.forEach(f => { initial[f.key] = "einwandfrei" })
+    fields.forEach(f => { initial[f.key] = f.options[0]?.value || "einwandfrei" })
     setReturnCondition(initial)
     setReturnNote("")
+    setReturnPhotos([])
+  }
+
+  const uploadPhoto = async (file: File, deviceId: number, field: string) => {
+    setUploadingField(field)
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("device_id", String(deviceId))
+    formData.append("field", field)
+    try {
+      const res = await fetch(`/api/offboarding/${id}/devices/upload`, { method: "POST", body: formData })
+      const result = await res.json()
+      if (res.ok && result.url) {
+        setReturnPhotos(prev => [...prev, { field, url: result.url }])
+      } else {
+        alert("Upload fehlgeschlagen: " + (result.error || "Unbekannter Fehler"))
+      }
+    } catch {
+      alert("Upload fehlgeschlagen")
+    }
+    setUploadingField(null)
+  }
+
+  const removePhoto = (index: number) => {
+    setReturnPhotos(prev => prev.filter((_, i) => i !== index))
   }
 
   const submitReturn = async () => {
@@ -113,6 +224,7 @@ export default function OffboardingDetailPage({ params }: { params: Promise<{ id
         device_id: returnModal.id,
         condition: returnCondition,
         note: returnNote,
+        photos: returnPhotos.length > 0 ? returnPhotos : undefined,
       }),
     })
     setReturnModal(null)
@@ -310,16 +422,21 @@ export default function OffboardingDetailPage({ params }: { params: Promise<{ id
           {/* Confirmation Mail */}
           {allDevicesReturned && data.status !== "completed" && (
             <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
+              {!showMailForm && (
+                <div className="px-5 py-4 flex items-center justify-center">
+                  <Button size="lg" className="w-full" onClick={() => setShowMailForm(true)}>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Geräterücknahme abschließen
+                  </Button>
+                </div>
+              )}
+              {showMailForm && (
               <div className="px-5 py-3 border-b bg-muted/30 flex items-center justify-between">
                 <h2 className="text-sm font-semibold flex items-center gap-2">
                   <Send className="h-4 w-4" /> Rückgabebestätigung versenden
                 </h2>
-                {!showMailForm && (
-                  <Button size="sm" onClick={() => setShowMailForm(true)}>
-                    <Send className="h-3.5 w-3.5 mr-1.5" /> Mail vorbereiten
-                  </Button>
-                )}
               </div>
+              )}
               {showMailForm && (
                 <div className="p-5 space-y-4">
                   <div>
@@ -452,18 +569,64 @@ export default function OffboardingDetailPage({ params }: { params: Promise<{ id
             </div>
             <div className="p-6 space-y-4">
               <h3 className="text-sm font-medium">Zustandsbewertung</h3>
-              {CONDITION_FIELDS.map(field => (
-                <div key={field.key} className="flex items-center justify-between gap-4">
-                  <label className="text-sm text-muted-foreground shrink-0 w-28">{field.label}</label>
-                  <select
-                    className={inp}
-                    value={returnCondition[field.key] || "einwandfrei"}
-                    onChange={e => setReturnCondition(prev => ({ ...prev, [field.key]: e.target.value }))}
-                  >
-                    {CONDITION_OPTIONS.map(opt => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
+              {conditionFields.map(field => (
+                <div key={field.key} className="space-y-2">
+                  <div className="flex items-center justify-between gap-4">
+                    <label className="text-sm text-muted-foreground shrink-0 w-36">{field.label}</label>
+                    <select
+                      className={inp}
+                      value={returnCondition[field.key] || field.options[0]?.value}
+                      onChange={e => setReturnCondition(prev => ({ ...prev, [field.key]: e.target.value }))}
+                    >
+                      {field.options.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {isDamageValue(returnCondition[field.key]) && (
+                    <div className="ml-36 pl-4">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {returnPhotos.filter(p => p.field === field.key).map((photo, idx) => (
+                          <div key={idx} className="relative group">
+                            <img
+                              src={photo.url}
+                              alt={`${field.label} Foto`}
+                              className="h-16 w-16 object-cover rounded-lg border"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removePhoto(returnPhotos.indexOf(photo))}
+                              className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                        <label className="h-16 w-16 rounded-lg border-2 border-dashed border-muted-foreground/30 flex flex-col items-center justify-center cursor-pointer hover:border-muted-foreground/50 transition-colors">
+                          {uploadingField === field.key ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          ) : (
+                            <>
+                              <Camera className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-[10px] text-muted-foreground mt-0.5">Foto</span>
+                            </>
+                          )}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            className="hidden"
+                            disabled={uploadingField !== null}
+                            onChange={e => {
+                              const f = e.target.files?.[0]
+                              if (f && returnModal) uploadPhoto(f, returnModal.id, field.key)
+                              e.target.value = ""
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Foto der Beschädigung hinzufügen</p>
+                    </div>
+                  )}
                 </div>
               ))}
               <div>
