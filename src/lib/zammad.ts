@@ -368,11 +368,14 @@ export async function syncCommentToZammad(ticketNumber: string, body: string, is
     const ticket = await queryOne<any>("SELECT zammad_id FROM tickets WHERE ticket_number = ?", [ticketNumber])
     if (!ticket?.zammad_id) return false
 
+    // Convert plain-text line breaks to HTML
+    const htmlBody = body.includes("<") ? body : body.replace(/\n/g, "<br>")
+
     await zammadFetch(`/ticket_articles`, {
       method: "POST",
       body: JSON.stringify({
         ticket_id: ticket.zammad_id,
-        body: body,
+        body: htmlBody,
         content_type: "text/html",
         type: "note",
         internal: isInternal,
