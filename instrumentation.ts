@@ -11,5 +11,9 @@ export async function register() {
     // Start Zammad sync poller
     const { startZammadPoller } = await import('./src/lib/zammad-poller')
     startZammadPoller()
+
+    // Start Entra ID + Intune sync poller
+    const { startSyncPoller } = await import('./src/lib/sync-poller')
+    startSyncPoller()
   }
 }

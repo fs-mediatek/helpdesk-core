@@ -556,6 +556,53 @@ export function SettingsClient({ initialSettings }: { initialSettings: Record<st
           }}><Mail className="h-3.5 w-3.5 mr-1.5" /> Jetzt abrufen</Button>
         </div>
       </CardContent></Card>
+
+      <Card className="mt-4"><CardContent className="pt-6 space-y-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Entra ID &amp; Intune Synchronisierung</p>
+
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => set("entra_sync_enabled", settings.entra_sync_enabled === "true" ? "false" : "true")} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${settings.entra_sync_enabled === "true" ? "bg-primary" : "bg-muted-foreground/20"}`}><span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${settings.entra_sync_enabled === "true" ? "translate-x-4.5" : "translate-x-0.5"}`} /></button>
+          <div>
+            <p className="text-sm font-medium">Benutzer aus Entra ID synchronisieren</p>
+            <p className="text-xs text-muted-foreground">Nur @ueag-jena.de und @injena.de Konten. Deaktivierte Konten werden markiert.</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => set("intune_sync_enabled", settings.intune_sync_enabled === "true" ? "false" : "true")} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${settings.intune_sync_enabled === "true" ? "bg-primary" : "bg-muted-foreground/20"}`}><span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${settings.intune_sync_enabled === "true" ? "translate-x-4.5" : "translate-x-0.5"}`} /></button>
+          <div>
+            <p className="text-sm font-medium">Geräte aus Microsoft Intune synchronisieren</p>
+            <p className="text-xs text-muted-foreground">Verwaltete Geräte werden als Assets importiert und bestehende überschrieben.</p>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Sync-Intervall (Stunden)</Label>
+          <Input type="number" min="1" max="168" value={settings.sync_interval_hours || "6"} onChange={e => set("sync_interval_hours", e.target.value)} />
+        </div>
+
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" type="button" onClick={async () => {
+            await save()
+            const res = await fetch("/api/sync/entra", { method: "POST" })
+            const data = await res.json()
+            alert(data.success ? `Entra Sync: ${data.created} erstellt, ${data.updated} aktualisiert, ${data.deactivated} deaktiviert, ${data.skipped} übersprungen` : `Fehler: ${data.error}`)
+          }}>Benutzer synchronisieren</Button>
+          <Button variant="outline" size="sm" type="button" onClick={async () => {
+            await save()
+            const res = await fetch("/api/sync/intune", { method: "POST" })
+            const data = await res.json()
+            alert(data.success ? `Intune Sync: ${data.created} erstellt, ${data.updated} aktualisiert, ${data.skipped} übersprungen` : `Fehler: ${data.error}`)
+          }}>Geräte synchronisieren</Button>
+        </div>
+
+        {(settings.entra_last_sync || settings.intune_last_sync) && (
+          <div className="rounded-lg bg-muted/30 border px-3 py-2 space-y-1">
+            {settings.entra_last_sync && <p className="text-xs text-muted-foreground">Letzte Entra-Sync: {new Date(settings.entra_last_sync).toLocaleString("de-DE")}</p>}
+            {settings.intune_last_sync && <p className="text-xs text-muted-foreground">Letzte Intune-Sync: {new Date(settings.intune_last_sync).toLocaleString("de-DE")}</p>}
+          </div>
+        )}
+      </CardContent></Card>
     </div>
   )
 
