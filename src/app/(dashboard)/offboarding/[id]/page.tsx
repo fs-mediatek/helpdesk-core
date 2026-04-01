@@ -142,6 +142,7 @@ export default function OffboardingDetailPage({ params }: { params: Promise<{ id
   const [privateEmail, setPrivateEmail] = useState("")
   const [ccAddresses, setCcAddresses] = useState("")
   const [updatingStatus, setUpdatingStatus] = useState(false)
+  const [mailResult, setMailResult] = useState<any>(null)
 
   const load = async () => {
     const [d, me] = await Promise.all([
@@ -242,8 +243,6 @@ export default function OffboardingDetailPage({ params }: { params: Promise<{ id
     await load()
     setUpdatingStatus(false)
   }
-
-  const [mailResult, setMailResult] = useState<any>(null)
 
   const sendConfirmationMail = async () => {
     if (!privateEmail || !privateEmail.includes("@")) { alert("Bitte private E-Mail-Adresse eingeben"); return }
