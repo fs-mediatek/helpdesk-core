@@ -150,25 +150,29 @@ export async function syncFromZammad(): Promise<{ imported: number; updated: num
     if (!tickets || tickets.length === 0) break
 
     for (const t of tickets) {
-      if (!activeStates.includes(t.state_id)) continue
-
       const ticketNumber = "ZAM-" + t.number
       const status = ZAMMAD_STATE_TO_HELPDESK[t.state_id] || "open"
       const priority = t.priority_id === 3 ? "high" : t.priority_id === 1 ? "low" : "medium"
 
-      try {
-        // Check if already exists
-        const existing = await queryOne<any>("SELECT id, status, zammad_id, updated_at FROM tickets WHERE ticket_number = ?", [ticketNumber])
+      // Skip tickets with states we don't import (but still update existing ones if closed)
+      const existing = await queryOne<any>("SELECT id, status, zammad_id, updated_at FROM tickets WHERE ticket_number = ?", [ticketNumber])
 
+      if (!activeStates.includes(t.state_id) && !existing) continue
+
+      try {
         if (existing) {
           // Backfill zammad_id if missing
           if (!existing.zammad_id) {
             await query("UPDATE tickets SET zammad_id = ? WHERE id = ?", [t.id, existing.id])
           }
-          // Only update local status from Zammad if the local ticket was NOT manually changed
-          // Rule: If locally closed/resolved, never reopen from Zammad
+          // Update status from Zammad — but never reopen locally closed/resolved tickets
           const localIsClosed = existing.status === "closed" || existing.status === "resolved"
-          if (!localIsClosed && existing.status !== status) {
+          const zammadIsClosed = status === "closed"
+          if (zammadIsClosed && !localIsClosed) {
+            // Zammad closed → close in HelpDesk
+            await query("UPDATE tickets SET status = 'closed' WHERE id = ?", [existing.id])
+            updated++
+          } else if (!localIsClosed && existing.status !== status) {
             await query("UPDATE tickets SET status = ? WHERE id = ?", [status, existing.id])
             updated++
           }
