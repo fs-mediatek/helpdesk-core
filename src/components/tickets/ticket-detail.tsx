@@ -186,9 +186,9 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
         {/* Main content */}
-        <div className="lg:col-span-2 space-y-5">
+        <div className="lg:col-span-3 space-y-5">
           <Card>
             <CardContent className="p-5">
               <div className="text-sm text-foreground/80 prose prose-sm dark:prose-invert max-w-none [&_p]:my-1 [&_br]:my-0 break-words overflow-hidden [&_a]:break-all" dangerouslySetInnerHTML={{ __html: ticket.description }} />
@@ -478,11 +478,10 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
             </Card>
           )}
 
+          {/* Checklist */}
+          <TicketChecklist ticketId={ticket.id} isAdmin={isAdmin} />
         </div>
       </div>
-
-      {/* Checklist — full width below the grid */}
-      <TicketChecklist ticketId={ticket.id} isAdmin={isAdmin} />
 
       {showForward && <ForwardModal ticket={ticket} onClose={() => { setShowForward(false); router.refresh() }} />}
     </div>
