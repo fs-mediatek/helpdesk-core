@@ -7,7 +7,7 @@ async function getTicket(id: string) {
   try {
     await pool.execute("ALTER TABLE tickets ADD COLUMN affected_user_id INT UNSIGNED DEFAULT NULL").catch(() => {})
     const [ticket] = await query(`
-      SELECT t.*, u.name as requester_name, u.email as requester_email,
+      SELECT t.*, u.name as requester_name, u.email as requester_email, u.phone as requester_phone,
              a.name as assignee_name,
              d.name as delegate_name, d.id as delegate_user_id,
              af.name as affected_user_name

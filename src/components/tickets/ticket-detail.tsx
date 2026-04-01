@@ -19,7 +19,12 @@ function ForwardModal({ ticket, onClose }: { ticket: any; onClose: () => void })
   const [subject, setSubject] = useState(`Ticket #${ticket.ticket_number}: ${ticket.title}`)
   const [body, setBody] = useState(() => {
     const desc = (ticket.description || "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'").replace(/\n{3,}/g, "\n\n").trim()
-    return `Sehr geehrte Damen und Herren,\n\nbitte um Unterstützung bei folgendem Anliegen:\n\n${desc}\n\nMit freundlichen Grüßen\nIT Helpdesk`
+    const userInfo = [
+      ticket.requester_name ? `Anwender: ${ticket.requester_name}` : null,
+      ticket.requester_email ? `E-Mail: ${ticket.requester_email}` : null,
+      ticket.requester_phone ? `Telefon: ${ticket.requester_phone}` : null,
+    ].filter(Boolean).join("\n")
+    return `Sehr geehrte Damen und Herren,\n\nbitte um Unterstützung bei folgendem Anliegen:\n\n${desc}\n\n--- Anwenderdaten ---\n${userInfo}\n\nMit freundlichen Grüßen\nIT Helpdesk`
   })
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
