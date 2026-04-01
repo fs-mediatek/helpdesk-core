@@ -239,24 +239,24 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
                   onChange={e => setComment(e.target.value)}
                   rows={3}
                 />
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-4">
                     {isAdmin && (
-                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <label className="flex items-center gap-1.5 text-xs cursor-pointer">
                         <input type="checkbox" checked={isInternal} onChange={e => { setIsInternal(e.target.checked); if (e.target.checked) setSendEmail(false) }} className="rounded" />
-                        <Lock className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-muted-foreground">Interne Notiz</span>
+                        <Lock className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-muted-foreground">Intern</span>
                       </label>
                     )}
                     {!isInternal && (
-                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <label className="flex items-center gap-1.5 text-xs cursor-pointer">
                         <input type="checkbox" checked={sendEmail} onChange={e => setSendEmail(e.target.checked)} className="rounded" />
-                        <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-muted-foreground">Per E-Mail senden</span>
+                        <Mail className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-muted-foreground">Per E-Mail</span>
                       </label>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 ml-auto">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     {isAdmin && (
                       <TemplateSelector
                         type="answer"
@@ -478,10 +478,11 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
             </Card>
           )}
 
-          {/* Checklist */}
-          <TicketChecklist ticketId={ticket.id} isAdmin={isAdmin} />
         </div>
       </div>
+
+      {/* Checklist — full width below the grid */}
+      <TicketChecklist ticketId={ticket.id} isAdmin={isAdmin} />
 
       {showForward && <ForwardModal ticket={ticket} onClose={() => { setShowForward(false); router.refresh() }} />}
     </div>
@@ -615,21 +616,23 @@ function TicketChecklist({ ticketId, isAdmin }: { ticketId: number; isAdmin: boo
 
         {/* Add new item */}
         {isAdmin && (
-          <div className="flex gap-1 pt-1">
-            <input
-              className="flex-1 text-xs rounded border bg-background px-2 py-1"
-              placeholder="Neuen Punkt hinzufügen..."
-              value={newItem}
-              onChange={e => setNewItem(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") addItem() }}
-            />
-            <button
-              onClick={addItem}
-              disabled={!newItem.trim()}
-              className="shrink-0 rounded border px-1.5 py-1 text-muted-foreground hover:text-primary hover:border-primary transition-colors disabled:opacity-30"
-            >
-              <Plus className="h-3 w-3" />
-            </button>
+          <div className="flex flex-wrap gap-1 pt-1">
+            <div className="flex gap-1 flex-1 min-w-0">
+              <input
+                className="flex-1 min-w-0 text-xs rounded border bg-background px-2 py-1"
+                placeholder="Neuen Punkt hinzufügen..."
+                value={newItem}
+                onChange={e => setNewItem(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") addItem() }}
+              />
+              <button
+                onClick={addItem}
+                disabled={!newItem.trim()}
+                className="shrink-0 rounded border px-1.5 py-1 text-muted-foreground hover:text-primary hover:border-primary transition-colors disabled:opacity-30"
+              >
+                <Plus className="h-3 w-3" />
+              </button>
+            </div>
             <TemplateSelector
               type="checklist"
               buttonLabel="Aus Vorlage"
