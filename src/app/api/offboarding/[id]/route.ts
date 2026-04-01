@@ -59,6 +59,25 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   })
 }
 
+async function closeLinkedTicket(requestId: number, agentUserId: number) {
+  try {
+    const { query, pool } = await import("@/lib/db")
+    // Find linked ticket by matching title pattern "Offboarding: {name}"
+    const [request] = await query("SELECT employee_name FROM onboarding_requests WHERE id = ?", [requestId]) as any[]
+    if (!request) return
+    const tickets = await query(
+      "SELECT id FROM tickets WHERE title LIKE ? AND status NOT IN ('closed','resolved')",
+      [`%Offboarding%${request.employee_name}%`]
+    ) as any[]
+    for (const ticket of tickets) {
+      await pool.execute(
+        "UPDATE tickets SET status = 'closed', assignee_id = ? WHERE id = ?",
+        [agentUserId, ticket.id]
+      )
+    }
+  } catch {}
+}
+
 export async function PUT(req: NextRequest, { params }: Ctx) {
   const { getSession } = await import("@/lib/auth")
   const { query, pool } = await import("@/lib/db")
@@ -149,6 +168,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
 
       if (advancement.completed) {
         await pool.execute("UPDATE onboarding_requests SET status='completed' WHERE id=? AND type='offboarding'", [id])
+        await closeLinkedTicket(Number(id), session.userId)
       } else if (advancement.nextStep) {
         await pool.execute("UPDATE onboarding_requests SET current_step=?, status='in_progress' WHERE id=? AND type='offboarding'",
           [advancement.nextStep, id])
@@ -196,6 +216,9 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
       "UPDATE onboarding_requests SET status = ? WHERE id = ? AND type = 'offboarding'",
       [body.status, id]
     )
+    if (body.status === "completed") {
+      await closeLinkedTicket(Number(id), session.userId)
+    }
     return NextResponse.json({ success: true })
   }
 

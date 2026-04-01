@@ -75,7 +75,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const sets = updates.map(([k]) => `${k} = ?`).join(", ")
   const vals = updates.map(([, v]) => v)
   if (body.status === "resolved") vals.push(new Date())
-  await query(`UPDATE tickets SET ${sets}${body.status === "resolved" ? ", resolved_at = ?" : ""} WHERE id = ?`, [...vals, id])
+  // Auto-assign current agent when closing/resolving if no one is assigned
+  const autoAssign = (body.status === "resolved" || body.status === "closed") && !current.assignee_id
+  if (autoAssign) vals.push(session.userId)
+  await query(`UPDATE tickets SET ${sets}${body.status === "resolved" ? ", resolved_at = ?" : ""}${autoAssign ? ", assignee_id = ?" : ""} WHERE id = ?`, [...vals, id])
 
   // Sync status back to Zammad if it's a ZAM- ticket
   if (body.status && current && body.status !== current.status) {
