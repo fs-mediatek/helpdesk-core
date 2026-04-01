@@ -165,7 +165,7 @@ export function Sidebar() {
                 <Icon className="h-4 w-4 shrink-0" />
                 {!collapsed && <span className="truncate">{item.label}</span>}
               </Link>
-              {hasChildren && !collapsed && active && (
+              {hasChildren && !collapsed && (
                 <div className="ml-5 pl-3 border-l-2 border-muted-foreground/15 space-y-0.5 mt-0.5 mb-1">
                   {item.children!.filter(child => {
                     if (child.adminOnly && !isAdmin) return false
