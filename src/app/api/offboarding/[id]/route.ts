@@ -82,6 +82,79 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ success: true })
   }
 
+  // Advance step (with optional action_type execution)
+  if (body.action === "advance" || body.action === "approve" || body.action === "reject"
+      || body.action === "cost_entry" || body.action === "asset_assign"
+      || body.action === "access_code_gen" || body.action === "access_code_confirm") {
+    const { executeStepAction, advanceWorkflow } = await import("@/lib/workflow-engine")
+
+    const [request] = await query("SELECT current_step, type FROM onboarding_requests WHERE id = ? AND type = 'offboarding'", [id]) as any[]
+    if (!request) return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 })
+
+    // Get the current step's action_type
+    const [currentStep] = await query(
+      "SELECT * FROM onboarding_step_progress WHERE request_id = ? AND step_order = ?",
+      [id, request.current_step]
+    ) as any[]
+    if (!currentStep) return NextResponse.json({ error: "Kein aktiver Schritt" }, { status: 400 })
+
+    const actionType = body.action === "advance" ? (currentStep.action_type || "none") : body.action
+
+    // For access_code_confirm, load expected code
+    if (actionType === "access_code_confirm") {
+      const [reqData] = await query("SELECT access_code FROM onboarding_requests WHERE id = ?", [id]) as any[]
+      body.expected_code = reqData?.access_code || ""
+    }
+
+    // For reject action, map to approval with reject flag
+    if (body.action === "reject") {
+      body.reject = true
+    }
+
+    const result = await executeStepAction({
+      stepId: currentStep.id,
+      actionType,
+      userId: session.userId,
+      userName: session.name,
+      body,
+    })
+
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 400 })
+    }
+
+    // Handle rejection
+    if (result.data?.rejected) {
+      await pool.execute("UPDATE onboarding_requests SET status='cancelled', notes=? WHERE id=? AND type='offboarding'",
+        [result.data.reason, id])
+      await pool.execute("UPDATE onboarding_step_progress SET status='completed', completed_at=NOW(), completed_by=?, notes=? WHERE request_id=? AND status IN ('active','pending')",
+        [session.userId, `Abgelehnt: ${result.data.reason}`, id])
+      return NextResponse.json({ success: true })
+    }
+
+    // Handle action-specific side effects
+    if (result.data?.access_code) {
+      await pool.execute("UPDATE onboarding_requests SET access_code=? WHERE id=?", [result.data.access_code, id]).catch(() => {})
+    }
+
+    // Advance the workflow
+    if (result.advance) {
+      const notes = body.notes || (result.data?.total_cost ? `Kosten: ${result.data.total_cost} €` : null)
+      const advancement = await advanceWorkflow(
+        "onboarding_step_progress", "request_id", Number(id), session.userId, notes
+      )
+
+      if (advancement.completed) {
+        await pool.execute("UPDATE onboarding_requests SET status='completed' WHERE id=? AND type='offboarding'", [id])
+      } else if (advancement.nextStep) {
+        await pool.execute("UPDATE onboarding_requests SET current_step=?, status='in_progress' WHERE id=? AND type='offboarding'",
+          [advancement.nextStep, id])
+      }
+    }
+
+    return NextResponse.json({ success: true, data: result.data })
+  }
+
   // Return device
   if (body.action === "return_device" && body.device_id) {
     const [device] = await query(

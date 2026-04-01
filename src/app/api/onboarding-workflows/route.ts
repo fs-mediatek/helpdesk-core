@@ -31,6 +31,10 @@ async function ensureTable() {
     completed_by INT UNSIGNED DEFAULT NULL,
     notes TEXT DEFAULT NULL
   )`).catch(() => {})
+
+  // Add action_type columns
+  try { await pool.execute("ALTER TABLE onboarding_workflow_steps ADD COLUMN action_type VARCHAR(50) DEFAULT 'none'") } catch {}
+  try { await pool.execute("ALTER TABLE onboarding_step_progress ADD COLUMN action_type VARCHAR(50) DEFAULT 'none'") } catch {}
 }
 
 // GET — list workflow steps by type
@@ -59,8 +63,8 @@ export async function POST(req: NextRequest) {
   for (let i = 0; i < steps.length; i++) {
     const s = steps[i]
     await pool.execute(
-      "INSERT INTO onboarding_workflow_steps (type, step_order, step_name, description, assigned_roles, is_checkpoint) VALUES (?,?,?,?,?,?)",
-      [type, i + 1, s.step_name, s.description || null, s.assigned_roles || null, s.is_checkpoint ? 1 : 0]
+      "INSERT INTO onboarding_workflow_steps (type, step_order, step_name, description, assigned_roles, is_checkpoint, action_type) VALUES (?,?,?,?,?,?,?)",
+      [type, i + 1, s.step_name, s.description || null, s.assigned_roles || null, s.is_checkpoint ? 1 : 0, s.action_type || "none"]
     )
   }
   return NextResponse.json({ success: true, count: steps.length })

@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { query, pool } from "@/lib/db"
+import { executeStepAction } from "@/lib/workflow-engine"
 
 type Ctx = { params: Promise<{ id: string }> }
-
-function generateAccessCode() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("")
-}
 
 async function completeActiveStep(id: string, userId: number, notes?: string) {
   const [activeStep] = await query("SELECT * FROM order_progress_steps WHERE order_id = ? AND status = 'active'", [id]) as any[]
@@ -109,24 +105,36 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ success: true })
   }
 
-  // Approval action
+  // Approval action — delegate validation to workflow engine
   if (body.action === "approve") {
+    const result = await executeStepAction({
+      stepId: 0, actionType: "approval", userId: session.userId, userName: session.name, body,
+    })
+    if (!result.success) return NextResponse.json({ error: result.error }, { status: 400 })
     await query("UPDATE orders SET approved_by=?, updated_at=NOW() WHERE id=?", [session.userId, id])
     await completeActiveStep(id, session.userId, "Genehmigt")
     return NextResponse.json({ success: true })
   }
 
-  // Rejection
+  // Rejection — delegate validation to workflow engine
   if (body.action === "reject") {
-    if (!body.reason) return NextResponse.json({ error: "Begründung erforderlich" }, { status: 400 })
+    const result = await executeStepAction({
+      stepId: 0, actionType: "approval", userId: session.userId, userName: session.name,
+      body: { ...body, reject: true },
+    })
+    if (!result.success) return NextResponse.json({ error: result.error }, { status: 400 })
     await query("UPDATE orders SET status='rejected', rejection_reason=?, approved_by=?, updated_at=NOW() WHERE id=?",
       [body.reason, session.userId, id])
     await query("UPDATE order_progress_steps SET status='completed' WHERE order_id=? AND status IN ('active','pending')", [id])
     return NextResponse.json({ success: true })
   }
 
-  // Cost entry + advance
+  // Cost entry + advance — delegate validation to workflow engine
   if (body.action === "cost_entry") {
+    const result = await executeStepAction({
+      stepId: 0, actionType: "cost_entry", userId: session.userId, userName: session.name, body,
+    })
+    if (!result.success) return NextResponse.json({ error: result.error }, { status: 400 })
     if (body.total_cost !== undefined) {
       await query("UPDATE orders SET total_cost=?, updated_at=NOW() WHERE id=?", [body.total_cost, id])
     }
@@ -134,9 +142,12 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ success: true })
   }
 
-  // Asset assignment + advance
+  // Asset assignment + advance — delegate validation to workflow engine
   if (body.action === "asset_assign") {
-    if (!body.asset_id) return NextResponse.json({ error: "Asset auswählen" }, { status: 400 })
+    const result = await executeStepAction({
+      stepId: 0, actionType: "asset_assign", userId: session.userId, userName: session.name, body,
+    })
+    if (!result.success) return NextResponse.json({ error: result.error }, { status: 400 })
     await query("UPDATE orders SET assigned_asset_id=?, updated_at=NOW() WHERE id=?", [body.asset_id, id])
     // Assign asset to the requester
     const [order] = await query("SELECT requested_by FROM orders WHERE id=?", [id]) as any[]
@@ -147,21 +158,27 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ success: true })
   }
 
-  // Generate access code
+  // Generate access code — delegate to workflow engine
   if (body.action === "access_code_gen") {
-    const code = generateAccessCode()
+    const result = await executeStepAction({
+      stepId: 0, actionType: "access_code_gen", userId: session.userId, userName: session.name, body,
+    })
+    if (!result.success) return NextResponse.json({ error: result.error }, { status: 400 })
+    const code = result.data!.access_code
     await query("UPDATE orders SET access_code=?, updated_at=NOW() WHERE id=?", [code, id])
     await completeActiveStep(id, session.userId, "Zugangscode generiert")
     return NextResponse.json({ success: true, access_code: code })
   }
 
-  // Confirm access code
+  // Confirm access code — delegate validation to workflow engine
   if (body.action === "access_code_confirm") {
     const [order] = await query("SELECT access_code FROM orders WHERE id=?", [id]) as any[]
     if (!order) return NextResponse.json({ error: "Bestellung nicht gefunden" }, { status: 404 })
-    if (!body.code || body.code.trim().toUpperCase() !== (order.access_code || "").toUpperCase()) {
-      return NextResponse.json({ error: "Zugangscode stimmt nicht überein" }, { status: 400 })
-    }
+    const result = await executeStepAction({
+      stepId: 0, actionType: "access_code_confirm", userId: session.userId, userName: session.name,
+      body: { ...body, expected_code: order.access_code },
+    })
+    if (!result.success) return NextResponse.json({ error: result.error }, { status: 400 })
     await completeActiveStep(id, session.userId, "Zugangscode bestätigt — Übergabe abgeschlossen")
     return NextResponse.json({ success: true })
   }

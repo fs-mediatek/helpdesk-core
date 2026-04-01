@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect, useRef } from "react"
-import { GitBranch, Plus, Pencil, Trash2, X, Loader2, ChevronDown, ChevronUp, ArrowUp, ArrowDown, Users, Zap, Package, UserPlus, UserMinus } from "lucide-react"
+import { GitBranch, Plus, Pencil, Trash2, X, Loader2, ChevronDown, ChevronUp, ArrowUp, ArrowDown, Users, Zap, Package, UserPlus, UserMinus, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { fetchRoles, type RoleDef } from "@/lib/roles"
 
@@ -633,7 +633,7 @@ function ActionTypesTab() {
 
 // ── Onboarding Workflow Tab ──────────────────────────────────────────────────
 
-function OnboardingWorkflowTab({ roles }: { roles: RoleDef[] }) {
+function OnboardingWorkflowTab({ roles, actionTypes }: { roles: RoleDef[]; actionTypes: { key: string; label: string }[] }) {
   const [obSteps, setObSteps] = useState<Step[]>([])
   const [offSteps, setOffSteps] = useState<Step[]>([])
   const [loading, setLoading] = useState(true)
@@ -646,8 +646,8 @@ function OnboardingWorkflowTab({ roles }: { roles: RoleDef[] }) {
       fetch("/api/onboarding-workflows?type=onboarding").then(r => r.json()),
       fetch("/api/onboarding-workflows?type=offboarding").then(r => r.json()),
     ]).then(([ob, off]) => {
-      setObSteps((ob as any[]).map(s => ({ step_name: s.step_name, description: s.description || "", assigned_roles: s.assigned_roles || "", action_type: "none" })))
-      setOffSteps((off as any[]).map(s => ({ step_name: s.step_name, description: s.description || "", assigned_roles: s.assigned_roles || "", action_type: "none" })))
+      setObSteps((ob as any[]).map(s => ({ step_name: s.step_name, description: s.description || "", assigned_roles: s.assigned_roles || "", action_type: s.action_type || "none" })))
+      setOffSteps((off as any[]).map(s => ({ step_name: s.step_name, description: s.description || "", assigned_roles: s.assigned_roles || "", action_type: s.action_type || "none" })))
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [])
@@ -698,15 +698,287 @@ function OnboardingWorkflowTab({ roles }: { roles: RoleDef[] }) {
   )
 }
 
+// ── Templates Tab ────────────────────────────────────────────────────────────
+
+interface WorkflowTemplate {
+  id: number
+  name: string
+  description: string
+  category: string
+  steps: Step[]
+  status: string
+}
+
+const TEMPLATE_CATEGORY_OPTIONS = [
+  { value: "order", label: "Bestellung" },
+  { value: "onboarding", label: "Onboarding" },
+  { value: "offboarding", label: "Offboarding" },
+  { value: "general", label: "Allgemein" },
+]
+
+const TEMPLATE_CATEGORY_BADGE: Record<string, string> = {
+  order: "bg-blue-500/10 text-blue-600 border-blue-200",
+  onboarding: "bg-emerald-500/10 text-emerald-600 border-emerald-200",
+  offboarding: "bg-red-500/10 text-red-600 border-red-200",
+  general: "bg-gray-500/10 text-gray-600 border-gray-200",
+}
+
+const TEMPLATE_CATEGORY_LABELS: Record<string, string> = {
+  order: "Bestellung",
+  onboarding: "Onboarding",
+  offboarding: "Offboarding",
+  general: "Allgemein",
+}
+
+function TemplateModal({ template, actionTypes, roles, onClose, onSaved }: {
+  template?: WorkflowTemplate; actionTypes: { key: string; label: string }[]; roles: RoleDef[]; onClose: () => void; onSaved: () => void
+}) {
+  const [form, setForm] = useState({
+    name: template?.name || "",
+    description: template?.description || "",
+    category: template?.category || "general",
+    steps: template?.steps?.length
+      ? template.steps.map(s => ({ step_name: s.step_name, description: s.description || "", assigned_roles: s.assigned_roles || "", action_type: s.action_type || "none" }))
+      : [{ step_name: "", description: "", assigned_roles: "", action_type: "none" }],
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const inp = "flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+
+  const addStep = () => setForm(f => ({ ...f, steps: [...f.steps, { step_name: "", description: "", assigned_roles: "", action_type: "none" }] }))
+  const removeStep = (i: number) => setForm(f => ({ ...f, steps: f.steps.filter((_, idx) => idx !== i) }))
+  const updateStep = (i: number, field: keyof Step, val: string) =>
+    setForm(f => ({ ...f, steps: f.steps.map((s, idx) => idx === i ? { ...s, [field]: val } : s) }))
+  const moveStep = (i: number, dir: -1 | 1) => {
+    const arr = [...form.steps]
+    const j = i + dir
+    if (j < 0 || j >= arr.length) return
+    ;[arr[i], arr[j]] = [arr[j], arr[i]]
+    setForm(f => ({ ...f, steps: arr }))
+  }
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.name.trim()) { setError("Name erforderlich"); return }
+    const validSteps = form.steps.filter(s => s.step_name.trim())
+    if (validSteps.length === 0) { setError("Mindestens ein Schritt erforderlich"); return }
+    setSaving(true); setError(null)
+    try {
+      const res = await fetch(template ? `/api/workflow-templates/${template.id}` : "/api/workflow-templates", {
+        method: template ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, steps: validSteps })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `Fehler ${res.status}`)
+      onSaved()
+    } catch (e: any) { setError(e.message) } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-card rounded-2xl border shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b">
+          <h2 className="text-lg font-semibold">{template ? "Template bearbeiten" : "Neues Template"}</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+        </div>
+        <form onSubmit={save} className="p-6 space-y-5">
+          {error && <div className="rounded-lg bg-red-500/10 border border-red-200 px-3 py-2 text-sm text-red-700 dark:text-red-400">{error}</div>}
+
+          <div>
+            <label className="text-sm font-medium mb-1 block">Name *</label>
+            <input className={inp} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="z.B. Standard-Onboarding IT" />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium mb-1 block">Beschreibung</label>
+            <textarea rows={2} className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Wofür wird dieses Template verwendet?" />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium mb-1 block">Kategorie</label>
+            <select className={inp} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+              {TEMPLATE_CATEGORY_OPTIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium mb-3 block">Workflow-Schritte *</label>
+            <div className="space-y-3">
+              {form.steps.map((step, i) => {
+                const selectedRoles = step.assigned_roles ? step.assigned_roles.split(",").map(r => r.trim()).filter(Boolean) : []
+                return (
+                  <div key={i} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex flex-col gap-0.5 shrink-0">
+                        <button type="button" onClick={() => moveStep(i, -1)} disabled={i === 0} className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors">
+                          <ArrowUp className="h-3 w-3 text-muted-foreground" />
+                        </button>
+                        <button type="button" onClick={() => moveStep(i, 1)} disabled={i === form.steps.length - 1} className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors">
+                          <ArrowDown className="h-3 w-3 text-muted-foreground" />
+                        </button>
+                      </div>
+                      <span className="text-xs text-muted-foreground w-5 text-right shrink-0">{i + 1}.</span>
+                      <input
+                        className={inp + " flex-1"}
+                        value={step.step_name}
+                        onChange={e => updateStep(i, "step_name", e.target.value)}
+                        placeholder={`Schritt ${i + 1}`}
+                      />
+                      <button type="button" onClick={() => removeStep(i)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-600 transition-colors shrink-0">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="pl-10 grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">Aktionstyp</label>
+                        <select
+                          className={inp + " text-xs"}
+                          value={step.action_type || "none"}
+                          onChange={e => updateStep(i, "action_type", e.target.value)}
+                        >
+                          {actionTypes.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">Zugewiesene Rollen (kommagetrennt)</label>
+                        <input
+                          className={inp + " text-xs"}
+                          value={step.assigned_roles}
+                          onChange={e => updateStep(i, "assigned_roles", e.target.value)}
+                          placeholder="z.B. agent, fuehrungskraft"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+              <button type="button" onClick={addStep} className="flex items-center gap-1.5 text-sm text-primary hover:underline mt-1">
+                <Plus className="h-3.5 w-3.5" /> Schritt hinzufügen
+              </button>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <button type="button" onClick={onClose} className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors">Abbrechen</button>
+            <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors">
+              {saving ? <><Loader2 className="h-4 w-4 animate-spin" />Speichere...</> : template ? "Speichern" : "Erstellen"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function TemplatesTab({ roles, actionTypes }: { roles: RoleDef[]; actionTypes: { key: string; label: string }[] }) {
+  const [templates, setTemplates] = useState<WorkflowTemplate[]>([])
+  const [loading, setLoading] = useState(true)
+  const [editTemplate, setEditTemplate] = useState<WorkflowTemplate | null | "new">(null)
+
+  const load = () => {
+    fetch("/api/workflow-templates").then(r => r.json())
+      .then(d => { setTemplates(Array.isArray(d) ? d : []); setLoading(false) })
+      .catch(() => setLoading(false))
+  }
+  useEffect(load, [])
+
+  const remove = async (t: WorkflowTemplate) => {
+    if (!confirm(`Template "${t.name}" wirklich löschen?`)) return
+    await fetch(`/api/workflow-templates/${t.id}`, { method: "DELETE" })
+    setTemplates(prev => prev.filter(x => x.id !== t.id))
+  }
+
+  if (loading) return <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground">Wiederverwendbare Workflow-Vorlagen für alle Bereiche</p>
+        </div>
+        <Button onClick={() => setEditTemplate("new")}><Plus className="h-4 w-4" /> Neues Template</Button>
+      </div>
+
+      {templates.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-dashed text-muted-foreground">
+          <FileText className="h-8 w-8 mb-2 opacity-40" />
+          <p className="text-sm font-medium">Noch keine Templates definiert</p>
+          <p className="text-xs mt-1 text-center max-w-xs">Erstelle wiederverwendbare Workflow-Vorlagen für Bestellungen, Onboarding und mehr.</p>
+          <button onClick={() => setEditTemplate("new")} className="mt-4 text-sm text-primary hover:underline">Erstes Template erstellen</button>
+        </div>
+      ) : (
+        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/30">
+                <th className="text-left px-5 py-3 font-medium text-muted-foreground">Name</th>
+                <th className="text-left px-5 py-3 font-medium text-muted-foreground">Kategorie</th>
+                <th className="text-left px-5 py-3 font-medium text-muted-foreground">Schritte</th>
+                <th className="text-left px-5 py-3 font-medium text-muted-foreground">Status</th>
+                <th className="text-right px-5 py-3 font-medium text-muted-foreground">Aktionen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {templates.map(t => {
+                const badgeCls = TEMPLATE_CATEGORY_BADGE[t.category] || TEMPLATE_CATEGORY_BADGE.general
+                return (
+                  <tr key={t.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                    <td className="px-5 py-3">
+                      <div>
+                        <p className="font-medium">{t.name}</p>
+                        {t.description && <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xs">{t.description}</p>}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3">
+                      <span className={`text-xs rounded-full border px-2 py-0.5 font-medium ${badgeCls}`}>
+                        {TEMPLATE_CATEGORY_LABELS[t.category] || t.category}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-muted-foreground">{t.steps?.length || 0}</td>
+                    <td className="px-5 py-3">
+                      <span className={`text-xs rounded-full border px-2 py-0.5 font-medium ${t.status === "active" ? "bg-emerald-500/10 text-emerald-600 border-emerald-200" : "bg-gray-500/10 text-gray-600 border-gray-200"}`}>
+                        {t.status === "active" ? "Aktiv" : t.status === "draft" ? "Entwurf" : t.status || "Aktiv"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-0.5 justify-end">
+                        <button onClick={() => setEditTemplate(t)} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"><Pencil className="h-3.5 w-3.5" /></button>
+                        <button onClick={() => remove(t)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-600 transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {editTemplate && (
+        <TemplateModal
+          template={editTemplate === "new" ? undefined : editTemplate}
+          actionTypes={actionTypes}
+          roles={roles}
+          onClose={() => setEditTemplate(null)}
+          onSaved={() => { setEditTemplate(null); load() }}
+        />
+      )}
+    </div>
+  )
+}
+
 // ── Main page ────────────────────────────────────────────────────────────────
 
 export default function WorkflowsPage() {
-  const [tab, setTab] = useState<"categories" | "products" | "actions" | "onboarding">("categories")
+  const [tab, setTab] = useState<"categories" | "products" | "actions" | "templates" | "onboarding">("categories")
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [editCat, setEditCat] = useState<Category | null | "new">(null)
   const [expanded, setExpanded] = useState<number | null>(null)
   const [roles, setRoles] = useState<RoleDef[]>([])
+  const [actionTypes, setActionTypes] = useState<{ key: string; label: string }[]>([])
 
   const load = () => {
     fetch("/api/order-categories")
@@ -714,7 +986,13 @@ export default function WorkflowsPage() {
       .then(d => { setCategories(Array.isArray(d) ? d : []); setLoading(false) })
       .catch(() => setLoading(false))
   }
-  useEffect(() => { load(); fetchRoles().then(setRoles) }, [])
+  useEffect(() => {
+    load()
+    fetchRoles().then(setRoles)
+    fetch("/api/action-types").then(r => r.json())
+      .then(d => setActionTypes(Array.isArray(d) ? d.map((a: any) => ({ key: a.key, label: a.label })) : []))
+      .catch(() => {})
+  }, [])
 
   const remove = async (cat: Category) => {
     if (!confirm(`Produktklasse "${cat.name}" wirklich löschen?`)) return
@@ -755,14 +1033,20 @@ export default function WorkflowsPage() {
           <Zap className="h-3.5 w-3.5" /> Sonderaktionen
         </button>
         <button
+          onClick={() => setTab("templates")}
+          className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium transition-all ${tab === "templates" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          <FileText className="h-3.5 w-3.5" /> Templates
+        </button>
+        <button
           onClick={() => setTab("onboarding")}
           className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium transition-all ${tab === "onboarding" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
           <UserPlus className="h-3.5 w-3.5" /> On-/Offboarding
         </button>
       </div>
 
-      {tab === "onboarding" && <OnboardingWorkflowTab roles={roles} />}
+      {tab === "onboarding" && <OnboardingWorkflowTab roles={roles} actionTypes={actionTypes} />}
       {tab === "actions" && <ActionTypesTab />}
+      {tab === "templates" && <TemplatesTab roles={roles} actionTypes={actionTypes} />}
       {tab === "products" && <ProductsTab categories={categories} roles={roles} />}
 
       {tab === "categories" && (loading ? (
