@@ -281,6 +281,13 @@ async function syncArticlesFromZammad(helpdeskTicketId: number, zammadTicketId: 
     const body = article.body || ""
     if (!body.trim()) continue
 
+    // Skip system notifications (auto-replies, trigger messages)
+    const senderName = article.sender || ""
+    if (senderName === "System") continue
+    if (article.type === "note" && article.created_by_id === 1) continue
+    if (/Ihre Anfrage.*ist bei uns eingegangen/i.test(body)) continue
+    if (/\(INC-\d+\)/i.test(body) && /Support-Mitarbeitern überprüft/i.test(body)) continue
+
     // Determine who wrote it
     let authorName = "Zammad"
     if (article.created_by_id) {
