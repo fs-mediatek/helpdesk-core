@@ -1,7 +1,9 @@
 // Background poller for Entra ID + Intune sync — started from instrumentation.ts
 
 let pollerInterval: ReturnType<typeof setInterval> | null = null
+let automationInterval: ReturnType<typeof setInterval> | null = null
 const CHECK_INTERVAL = 60_000 // check every 60 seconds
+const AUTOMATION_INTERVAL = 300_000 // SLA + satisfaction every 5 minutes
 
 export function startSyncPoller() {
   if (pollerInterval) return // already running
@@ -12,9 +14,15 @@ export function startSyncPoller() {
     pollerInterval = setInterval(async () => {
       await checkAndSync()
     }, CHECK_INTERVAL)
+
+    // Automation checks every 5 minutes (SLA escalation + satisfaction surveys)
+    await runAutomationChecks()
+    automationInterval = setInterval(async () => {
+      await runAutomationChecks()
+    }, AUTOMATION_INTERVAL)
   }, 15_000) // wait 15s after startup
 
-  console.log("[Sync Poller] Gestartet (prüft alle 60s)")
+  console.log("[Sync Poller] Gestartet (prüft alle 60s, Automatisierung alle 5min)")
 }
 
 async function checkAndSync() {
@@ -61,4 +69,18 @@ async function checkAndSync() {
   } catch (err: any) {
     console.error("[Sync Poller] Fehler:", err.message)
   }
+}
+
+async function runAutomationChecks() {
+  // SLA escalation check
+  try {
+    const { checkSlaEscalations } = await import("@/lib/sla-escalation")
+    await checkSlaEscalations()
+  } catch {}
+
+  // Satisfaction survey check
+  try {
+    const { sendPendingSurveys } = await import("@/lib/satisfaction-survey")
+    await sendPendingSurveys()
+  } catch {}
 }

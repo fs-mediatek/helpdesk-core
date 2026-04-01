@@ -3,12 +3,14 @@ import { NextRequest, NextResponse } from "next/server"
 const PUBLIC_PATHS = [
   "/login",
   "/setup",
+  "/satisfaction",
   "/api/auth/login",
   "/api/auth/logout",
   "/api/auth/login-status",
   "/api/auth/ms-login",
   "/api/auth/microsoft",
   "/api/setup",
+  "/api/satisfaction",
 ]
 
 async function getSession(req: NextRequest) {

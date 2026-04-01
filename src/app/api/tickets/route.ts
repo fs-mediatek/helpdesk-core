@@ -114,5 +114,34 @@ export async function POST(req: NextRequest) {
     })
   } catch {}
 
+  // Auto-assign ticket based on rules
+  try {
+    const { autoAssignTicket } = await import("@/lib/auto-assign")
+    // Get requester's department
+    let requesterDepartment: string | null = null
+    try {
+      const [reqUser] = await query("SELECT department FROM users WHERE id = ?", [requesterId]) as any[]
+      requesterDepartment = reqUser?.department || null
+    } catch {}
+    const assignedTo = await autoAssignTicket(ticketId, category, requesterDepartment)
+    if (assignedTo) {
+      try {
+        const [agent] = await query("SELECT name, email FROM users WHERE id = ?", [assignedTo]) as any[]
+        if (agent) {
+          const { fireTemplateTrigger } = await import("@/lib/template-triggers")
+          await fireTemplateTrigger("ticket_assigned", {
+            ticket_nummer: ticketNumber,
+            ticket_titel: title,
+            agent_name: agent.name,
+            agent_email: agent.email,
+            ersteller_name: session.name,
+            ersteller_email: session.email,
+            datum: new Date().toLocaleDateString("de-DE"),
+          })
+        }
+      } catch {}
+    }
+  } catch {}
+
   return NextResponse.json({ id: ticketId, ticket_number: ticketNumber }, { status: 201 })
 }

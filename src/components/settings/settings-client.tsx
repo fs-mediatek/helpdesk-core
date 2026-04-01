@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Building2, Mail, Palette, Save, Loader2, LayoutGrid, Menu, Check, Shield, Plus, Trash2, X,
-  Hash, Pencil, Users, ChevronLeft, ArrowLeft, UserPlus, UserMinus, Phone, MessageCircle, Cloud
+  Hash, Pencil, Users, ChevronLeft, ArrowLeft, UserPlus, UserMinus, Phone, MessageCircle, Cloud, Zap
 } from "lucide-react"
 import { NAV_ITEMS_META } from "@/components/layout/sidebar"
 import { fetchRoles, type RoleDef } from "@/lib/roles"
@@ -28,6 +28,7 @@ const SECTIONS = [
   { id: "catalog", label: "Produktkatalog", icon: LayoutGrid, desc: "Verwaltungszugang für den Katalog" },
   { id: "branding", label: "Branding", icon: Palette, desc: "Farben und Logo anpassen" },
   { id: "chatbot", label: "IT-Assistent", icon: MessageCircle, desc: "Chatbot-Begrüßung, Fallback und vordefinierte Antworten" },
+  { id: "automation", label: "Automatisierung", icon: Zap, desc: "SLA-Eskalation, Auto-Zuweisung, Zufriedenheitsabfrage" },
 ]
 
 const ALWAYS_VISIBLE = ["dashboard", "settings"]
@@ -831,6 +832,8 @@ export function SettingsClient({ initialSettings }: { initialSettings: Record<st
   )
 
   // ─── Section: Chatbot ───
+  if (activeSection === "automation") return <AutomationSettings settings={settings} set={set} save={save} saving={saving} saved={saved} setActiveSection={setActiveSection} SectionHeader={SectionHeader} inp={inp} />
+
   if (activeSection === "chatbot") return <ChatbotSettings />
 
   return null
@@ -1167,6 +1170,280 @@ function ChatbotSettings() {
         </div>
       </div>
       </>}
+    </div>
+  )
+}
+
+// ─── Automation Settings (SLA, Auto-Assign, Satisfaction) ───
+function AutomationSettings({ settings, set, save, saving, saved, setActiveSection, SectionHeader, inp }: {
+  settings: Record<string, string>
+  set: (key: string, value: string) => void
+  save: () => Promise<void>
+  saving: boolean
+  saved: boolean
+  setActiveSection: (s: string | null) => void
+  SectionHeader: any
+  inp: string
+}) {
+  const [rules, setRules] = useState<any[]>([])
+  const [agents, setAgents] = useState<any[]>([])
+  const [departments, setDepartments] = useState<string[]>([])
+  const [newRule, setNewRule] = useState({ category: "", department: "", assign_to_user_id: "" })
+
+  const loadRules = () => {
+    fetch("/api/auto-assign").then(r => r.ok ? r.json() : []).then(d => setRules(Array.isArray(d) ? d : [])).catch(() => {})
+  }
+
+  useEffect(() => {
+    loadRules()
+    fetch("/api/users?role=agent").then(r => r.ok ? r.json() : []).then(d => {
+      const list = Array.isArray(d) ? d : (d?.users || [])
+      setAgents(list)
+    }).catch(() => {})
+    fetch("/api/departments").then(r => r.ok ? r.json() : []).then(d => {
+      const list = Array.isArray(d) ? d : []
+      setDepartments(list.map((dep: any) => dep.name || dep.display_name || dep))
+    }).catch(() => {})
+  }, [])
+
+  const addRule = async () => {
+    if (!newRule.assign_to_user_id) return
+    await fetch("/api/auto-assign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        category: newRule.category || null,
+        department: newRule.department || null,
+        assign_to_user_id: parseInt(newRule.assign_to_user_id),
+      }),
+    })
+    setNewRule({ category: "", department: "", assign_to_user_id: "" })
+    loadRules()
+  }
+
+  const deleteRule = async (id: number) => {
+    await fetch("/api/auto-assign", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    })
+    loadRules()
+  }
+
+  const categories = ["Hardware", "Software", "Netzwerk", "Zugang", "E-Mail", "Telefonie", "Sonstiges"]
+
+  return (
+    <div className="animate-fade-in max-w-3xl space-y-6">
+      <SectionHeader title="Automatisierung" desc="SLA-Eskalation, Auto-Zuweisung und Zufriedenheitsabfrage" />
+
+      {/* Card 1: SLA Escalation */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">SLA-Eskalation</CardTitle>
+          <CardDescription>Automatische Warnungen und Eskalationen bei SLA-Verletzungen</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label>SLA-Eskalation aktiviert</Label>
+            <button
+              type="button"
+              onClick={() => set("sla_escalation_enabled", settings.sla_escalation_enabled === "true" ? "false" : "true")}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.sla_escalation_enabled === "true" ? "bg-primary" : "bg-gray-300"}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.sla_escalation_enabled === "true" ? "translate-x-6" : "translate-x-1"}`} />
+            </button>
+          </div>
+
+          {settings.sla_escalation_enabled === "true" && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Kritisch (Stunden)</Label>
+                  <Input type="number" min="0.5" step="0.5" value={settings.sla_critical_hours || "2"} onChange={e => set("sla_critical_hours", e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Hoch (Stunden)</Label>
+                  <Input type="number" min="0.5" step="0.5" value={settings.sla_high_hours || "4"} onChange={e => set("sla_high_hours", e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Mittel (Stunden)</Label>
+                  <Input type="number" min="0.5" step="0.5" value={settings.sla_medium_hours || "8"} onChange={e => set("sla_medium_hours", e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Niedrig (Stunden)</Label>
+                  <Input type="number" min="1" step="1" value={settings.sla_low_hours || "24"} onChange={e => set("sla_low_hours", e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Eskalations-E-Mail</Label>
+                <Input type="email" value={settings.sla_escalation_email || ""} onChange={e => set("sla_escalation_email", e.target.value)} placeholder="eskalation@firma.de" />
+                <p className="text-xs text-muted-foreground">Empfänger bei SLA-Verletzung (100%)</p>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Card 2: Auto-Assign */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Auto-Zuweisung</CardTitle>
+          <CardDescription>Tickets automatisch an Agents zuweisen basierend auf Kategorie und Abteilung</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label>Auto-Zuweisung aktiviert</Label>
+            <button
+              type="button"
+              onClick={() => set("auto_assign_enabled", settings.auto_assign_enabled === "true" ? "false" : "true")}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.auto_assign_enabled === "true" ? "bg-primary" : "bg-gray-300"}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.auto_assign_enabled === "true" ? "translate-x-6" : "translate-x-1"}`} />
+            </button>
+          </div>
+
+          {settings.auto_assign_enabled === "true" && (
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Round-Robin-Fallback</Label>
+                  <p className="text-xs text-muted-foreground">Wenn keine Regel greift: Agent mit wenigsten offenen Tickets</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => set("auto_assign_round_robin", settings.auto_assign_round_robin === "true" ? "false" : "true")}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.auto_assign_round_robin === "true" ? "bg-primary" : "bg-gray-300"}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.auto_assign_round_robin === "true" ? "translate-x-6" : "translate-x-1"}`} />
+                </button>
+              </div>
+
+              {/* Rules table */}
+              {rules.length > 0 && (
+                <div className="rounded-xl border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b bg-muted/30">
+                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Kategorie</th>
+                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Abteilung</th>
+                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Agent</th>
+                      <th className="px-3 py-2 w-10"></th>
+                    </tr></thead>
+                    <tbody className="divide-y">
+                      {rules.map(rule => (
+                        <tr key={rule.id} className="hover:bg-muted/20">
+                          <td className="px-3 py-2">{rule.category || <span className="text-muted-foreground">Alle</span>}</td>
+                          <td className="px-3 py-2">{rule.department || <span className="text-muted-foreground">Alle</span>}</td>
+                          <td className="px-3 py-2">{rule.user_name || `User #${rule.assign_to_user_id}`}</td>
+                          <td className="px-3 py-2">
+                            <button onClick={() => deleteRule(rule.id)} className="text-muted-foreground hover:text-red-500 transition-colors">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Add rule form */}
+              <div className="rounded-xl border p-4 space-y-3">
+                <p className="text-sm font-medium">Neue Regel hinzufügen</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Kategorie</Label>
+                    <select
+                      className={inp}
+                      value={newRule.category}
+                      onChange={e => setNewRule(r => ({ ...r, category: e.target.value }))}
+                    >
+                      <option value="">Alle Kategorien</option>
+                      {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Abteilung</Label>
+                    <select
+                      className={inp}
+                      value={newRule.department}
+                      onChange={e => setNewRule(r => ({ ...r, department: e.target.value }))}
+                    >
+                      <option value="">Alle Abteilungen</option>
+                      {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Agent</Label>
+                    <select
+                      className={inp}
+                      value={newRule.assign_to_user_id}
+                      onChange={e => setNewRule(r => ({ ...r, assign_to_user_id: e.target.value }))}
+                    >
+                      <option value="">Agent wählen...</option>
+                      {agents.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <Button size="sm" onClick={addRule} disabled={!newRule.assign_to_user_id}>
+                  <Plus className="h-4 w-4" /> Regel hinzufügen
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Card 3: Satisfaction Survey */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Zufriedenheitsabfrage</CardTitle>
+          <CardDescription>Nach Lösung eines Tickets automatisch eine Zufriedenheitsumfrage versenden</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label>Zufriedenheitsabfrage aktiviert</Label>
+            <button
+              type="button"
+              onClick={() => set("satisfaction_enabled", settings.satisfaction_enabled === "true" ? "false" : "true")}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.satisfaction_enabled === "true" ? "bg-primary" : "bg-gray-300"}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.satisfaction_enabled === "true" ? "translate-x-6" : "translate-x-1"}`} />
+            </button>
+          </div>
+
+          {settings.satisfaction_enabled === "true" && (
+            <>
+              <div className="space-y-1.5">
+                <Label>Verzögerung (Tage nach Lösung)</Label>
+                <Input type="number" min="0" max="30" value={settings.satisfaction_delay_days || "3"} onChange={e => set("satisfaction_delay_days", e.target.value)} />
+                <p className="text-xs text-muted-foreground">Wie viele Tage nach Lösung soll die Umfrage gesendet werden?</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>E-Mail-Betreff</Label>
+                <Input value={settings.satisfaction_email_subject || ""} onChange={e => set("satisfaction_email_subject", e.target.value)} placeholder="Wie zufrieden sind Sie mit der Lösung Ihres Tickets {{ticket_nummer}}?" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>E-Mail-Inhalt (HTML)</Label>
+                <textarea
+                  className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none font-mono"
+                  rows={6}
+                  value={settings.satisfaction_email_body || ""}
+                  onChange={e => set("satisfaction_email_body", e.target.value)}
+                  placeholder="Leer = Standard-Vorlage"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Platzhalter: {"{{name}}"}, {"{{ticket_nummer}}"}, {"{{ticket_titel}}"}, {"{{link}}"}
+                </p>
+              </div>
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                <p className="text-xs text-amber-800">
+                  Bei einer Bewertung von 1-2 Sternen wird das Ticket automatisch wieder geöffnet.
+                </p>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
