@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { query, pool } from "@/lib/db"
-import nodemailer from "nodemailer"
+import { sendMail } from "@/lib/mailer"
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -10,30 +10,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { to, subject, body } = await req.json()
   if (!to || !subject || !body) return NextResponse.json({ error: "Empfänger, Betreff und Nachricht erforderlich" }, { status: 400 })
 
-  // Load SMTP settings
-  const rows = await query("SELECT key_name, value FROM settings WHERE key_name LIKE 'smtp_%'") as any[]
-  const s: Record<string, string> = {}
-  rows.forEach((r: any) => { s[r.key_name] = r.value })
-
-  if (!s.smtp_host) return NextResponse.json({ error: "SMTP nicht konfiguriert (Einstellungen → E-Mail)" }, { status: 400 })
-
-  const transporter = nodemailer.createTransport({
-    host: s.smtp_host, port: parseInt(s.smtp_port || "587"),
-    secure: s.smtp_port === "465",
-    auth: s.smtp_user ? { user: s.smtp_user, pass: s.smtp_pass } : undefined,
-  })
-
-  const [ticket] = await query("SELECT ticket_number, title FROM tickets WHERE id = ?", [id]) as any[]
-  const fromName = s.smtp_from_name || "IT Helpdesk"
-  const fromAddr = s.smtp_from_address || s.smtp_user || ""
-
-  await transporter.sendMail({
-    from: `"${fromName}" <${fromAddr}>`,
-    to,
-    subject,
-    text: body,
-    html: body.replace(/\n/g, "<br>"),
-  })
+  try {
+    const htmlBody = body.includes("<") ? body : body.replace(/\n/g, "<br>")
+    await sendMail(to, subject, htmlBody)
+  } catch (err: any) {
+    return NextResponse.json({ error: "E-Mail-Versand fehlgeschlagen: " + err.message }, { status: 500 })
+  }
 
   // Save as internal comment
   await pool.execute(

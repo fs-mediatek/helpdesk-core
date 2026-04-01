@@ -25,7 +25,7 @@ export async function fireTemplateTrigger(event: string, context: TriggerContext
     const { sendMail } = await import("@/lib/mailer")
 
     const templates = await query(
-      "SELECT id, title, content, trigger_recipient FROM response_templates WHERE trigger_event = ? AND trigger_enabled = 1",
+      "SELECT id, name, content, trigger_recipient FROM templates WHERE trigger_event = ? AND trigger_enabled = 1",
       [event]
     ) as any[]
 
@@ -34,7 +34,7 @@ export async function fireTemplateTrigger(event: string, context: TriggerContext
     for (const template of templates) {
       try {
         let content = template.content || ""
-        let subject = template.title || ""
+        let subject = template.name || ""
 
         // Replace all placeholders in content and subject
         const replacements: Record<string, string | undefined> = {
