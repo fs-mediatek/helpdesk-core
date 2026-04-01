@@ -72,7 +72,7 @@ function RoleChips({ selected, onChange, roles }: { selected: string[]; onChange
   )
 }
 
-function StepEditor({ steps, onChange, roles }: { steps: Step[]; onChange: (steps: Step[]) => void; roles: RoleDef[] }) {
+function StepEditor({ steps, onChange, roles, actionTypes }: { steps: Step[]; onChange: (steps: Step[]) => void; roles: RoleDef[]; actionTypes?: { key: string; label: string }[] }) {
   const add = () => onChange([...steps, { step_name: "", description: "", assigned_roles: "", action_type: "none" }])
   const remove = (i: number) => onChange(steps.filter((_, idx) => idx !== i))
   const update = (i: number, field: keyof Step, val: string) =>
@@ -120,7 +120,7 @@ function StepEditor({ steps, onChange, roles }: { steps: Step[]; onChange: (step
                   value={step.action_type || "none"}
                   onChange={e => update(i, "action_type", e.target.value)}
                 >
-                  {ACTION_TYPES.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+                  {(actionTypes || ACTION_TYPES).map(a => <option key={'key' in a ? a.key : (a as any).value} value={'key' in a ? a.key : (a as any).value}>{'label' in a ? a.label : (a as any).label}</option>)}
                 </select>
               </div>
               <div>
@@ -231,7 +231,7 @@ function CategoryModal({ cat, roles, onClose, onSaved }: { cat?: Category; roles
 
           <div>
             <label className="text-sm font-medium mb-3 block">Workflow-Schritte *</label>
-            <StepEditor steps={form.steps} onChange={steps => setForm(f => ({ ...f, steps }))} roles={roles} />
+            <StepEditor steps={form.steps} onChange={steps => setForm(f => ({ ...f, steps }))} roles={roles} actionTypes={actionTypes} />
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t">
@@ -692,7 +692,7 @@ function OnboardingWorkflowTab({ roles, actionTypes }: { roles: RoleDef[]; actio
             ? "Workflow-Schritte für neue Mitarbeiter (z.B. Personalakte, Hardware, Zugänge, Einarbeitung)"
             : "Workflow-Schritte beim Austritt (z.B. Zugänge sperren, Hardware einsammeln, Abmeldungen)"}
         </p>
-        <StepEditor steps={steps} onChange={setSteps} roles={roles} />
+        <StepEditor steps={steps} onChange={setSteps} roles={roles} actionTypes={actionTypes} />
       </div>
     </div>
   )
