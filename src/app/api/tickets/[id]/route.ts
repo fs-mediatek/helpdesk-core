@@ -148,5 +148,26 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     ).catch(() => {})
   }
 
+  // Fire template trigger for status changes to resolved/closed
+  if (body.status && current && body.status !== current.status) {
+    try {
+      const { fireTemplateTrigger } = await import("@/lib/template-triggers")
+      const event = body.status === "resolved" ? "ticket_resolved" : body.status === "closed" ? "ticket_closed" : null
+      if (event) {
+        const [ticket] = await query("SELECT ticket_number, title, requester_id FROM tickets WHERE id = ?", [id]) as any[]
+        const [requester] = await query("SELECT name, email FROM users WHERE id = ?", [ticket.requester_id]) as any[]
+        await fireTemplateTrigger(event, {
+          ticket_nummer: ticket?.ticket_number,
+          ticket_titel: ticket?.title,
+          ersteller_name: requester?.name,
+          ersteller_email: requester?.email,
+          agent_name: session.name,
+          agent_email: session.email,
+          datum: new Date().toLocaleDateString("de-DE"),
+        })
+      }
+    } catch {}
+  }
+
   return NextResponse.json({ success: true })
 }

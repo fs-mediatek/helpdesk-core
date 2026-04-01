@@ -102,5 +102,17 @@ export async function POST(req: NextRequest) {
     await applySlaToTicket(ticketId, { category, department: user?.department, priority })
   } catch {}
 
+  // Fire template trigger for ticket creation
+  try {
+    const { fireTemplateTrigger } = await import("@/lib/template-triggers")
+    await fireTemplateTrigger("ticket_created", {
+      ticket_nummer: ticketNumber,
+      ticket_titel: title,
+      ersteller_name: session.name,
+      ersteller_email: session.email,
+      datum: new Date().toLocaleDateString("de-DE"),
+    })
+  } catch {}
+
   return NextResponse.json({ id: ticketId, ticket_number: ticketNumber }, { status: 201 })
 }

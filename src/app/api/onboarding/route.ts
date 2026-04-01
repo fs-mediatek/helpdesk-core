@@ -166,5 +166,16 @@ export async function POST(req: NextRequest) {
     console.error("[Onboarding] Ticket creation error:", err)
   }
 
+  // Fire template trigger for onboarding
+  try {
+    const { fireTemplateTrigger } = await import("@/lib/template-triggers")
+    await fireTemplateTrigger("onboarding_started", {
+      mitarbeiter_name: employeeName,
+      mitarbeiter_email: body.employee_email,
+      abteilung: body.department,
+      datum: new Date().toLocaleDateString("de-DE"),
+    })
+  } catch {}
+
   return NextResponse.json({ id: requestId }, { status: 201 })
 }

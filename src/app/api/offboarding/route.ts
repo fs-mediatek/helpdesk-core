@@ -186,5 +186,17 @@ export async function POST(req: NextRequest) {
     console.error("[Offboarding] Ticket creation error:", err)
   }
 
+  // Fire template trigger for offboarding
+  try {
+    const { fireTemplateTrigger } = await import("@/lib/template-triggers")
+    await fireTemplateTrigger("offboarding_started", {
+      mitarbeiter_name: user.name,
+      mitarbeiter_email: user.email,
+      abteilung: user.department,
+      austrittsdatum: last_working_day,
+      datum: new Date().toLocaleDateString("de-DE"),
+    })
+  } catch {}
+
   return NextResponse.json({ success: true, id: requestId, number: requestNumber }, { status: 201 })
 }

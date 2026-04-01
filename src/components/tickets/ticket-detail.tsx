@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Send, Lock, User, Calendar, Tag, Forward, X, Loader2, Ban, Sparkles, CheckSquare, Plus, Trash2, Pencil, Users, TrendingUp, ShieldAlert, BookOpen, Mail } from "lucide-react"
+import { ArrowLeft, Send, Lock, User, Calendar, Tag, Forward, X, Loader2, Ban, Sparkles, CheckSquare, Plus, Trash2, Pencil, Users, TrendingUp, ShieldAlert, BookOpen, Mail, FileText } from "lucide-react"
+import { TemplateSelector } from "@/components/shared/template-selector"
 import Link from "next/link"
 import { formatDistanceToNow, format } from "date-fns"
 import { de } from "date-fns/locale"
@@ -256,6 +257,12 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
                     )}
                   </div>
                   <div className="flex items-center gap-2 ml-auto">
+                    {isAdmin && (
+                      <TemplateSelector
+                        type="answer"
+                        onSelect={(t) => setComment(prev => prev ? prev + "\n\n" + t.content : t.content)}
+                      />
+                    )}
                     {isAdmin && (
                       <Button type="button" variant="outline" size="sm" disabled={analyzing} onClick={async () => {
                         setAnalyzing(true)
@@ -623,6 +630,22 @@ function TicketChecklist({ ticketId, isAdmin }: { ticketId: number; isAdmin: boo
             >
               <Plus className="h-3 w-3" />
             </button>
+            <TemplateSelector
+              type="checklist"
+              buttonLabel="Aus Vorlage"
+              size="sm"
+              onSelect={async (t) => {
+                const items = t.content.split("\n").filter(l => l.trim())
+                for (const item of items) {
+                  await fetch(`/api/tickets/${ticketId}/checklist`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ content: item.trim() }),
+                  })
+                }
+                load()
+              }}
+            />
           </div>
         )}
 

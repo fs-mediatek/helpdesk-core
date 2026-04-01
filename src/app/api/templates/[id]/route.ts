@@ -8,11 +8,11 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const { id } = await params
-  const { title, content, category, tags } = await req.json()
+  const { title, content, category, tags, type, trigger_event, trigger_recipient, trigger_enabled } = await req.json()
   if (!title?.trim() || !content?.trim()) return NextResponse.json({ error: "Titel und Inhalt erforderlich" }, { status: 400 })
   await query(
-    "UPDATE response_templates SET title=?, content=?, category=?, tags=? WHERE id=?",
-    [title.trim(), content.trim(), category || null, tags || null, id]
+    "UPDATE response_templates SET title=?, content=?, category=?, tags=?, type=?, trigger_event=?, trigger_recipient=?, trigger_enabled=? WHERE id=?",
+    [title.trim(), content.trim(), category || null, tags || null, type || "answer", trigger_event || "none", trigger_recipient || null, trigger_enabled ? 1 : 0, id]
   )
   return NextResponse.json({ success: true })
 }

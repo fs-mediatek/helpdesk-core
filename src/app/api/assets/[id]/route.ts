@@ -30,6 +30,21 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
      purchase_price || null, supplier_id || null, invoice_number || null, commissioned_at || null,
      assigned_to_user_id || null, id]
   )
+  // Fire template trigger when asset is assigned to a user
+  if (assigned_to_user_id) {
+    try {
+      const { fireTemplateTrigger } = await import("@/lib/template-triggers")
+      const assignedUser = await query("SELECT name, email FROM users WHERE id = ?", [assigned_to_user_id]) as any[]
+      await fireTemplateTrigger("asset_assigned", {
+        geraet_name: name,
+        geraet_tag: asset_tag,
+        betroffener_name: assignedUser[0]?.name,
+        betroffener_email: assignedUser[0]?.email,
+        datum: new Date().toLocaleDateString("de-DE"),
+      })
+    } catch {}
+  }
+
   return NextResponse.json({ success: true })
 }
 
