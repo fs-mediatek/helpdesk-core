@@ -243,6 +243,8 @@ export default function OffboardingDetailPage({ params }: { params: Promise<{ id
     setUpdatingStatus(false)
   }
 
+  const [mailResult, setMailResult] = useState<any>(null)
+
   const sendConfirmationMail = async () => {
     if (!privateEmail || !privateEmail.includes("@")) { alert("Bitte private E-Mail-Adresse eingeben"); return }
     setSendingMail(true)
@@ -252,8 +254,11 @@ export default function OffboardingDetailPage({ params }: { params: Promise<{ id
       body: JSON.stringify({ private_email: privateEmail, cc_addresses: ccAddresses }),
     })
     const result = await res.json()
-    if (!res.ok) { alert("Fehler: " + (result.error || "Unbekannter Fehler")); setSendingMail(false); return }
     setSendingMail(false)
+    if (!res.ok) { alert("Fehler: " + (result.error || "Unbekannter Fehler")); return }
+    setMailResult(result)
+    setShowMailForm(false)
+    await load()
   }
 
   return (
@@ -419,8 +424,41 @@ export default function OffboardingDetailPage({ params }: { params: Promise<{ id
             </div>
           )}
 
-          {/* Confirmation Mail */}
-          {allDevicesReturned && data.status !== "completed" && (
+          {/* Confirmation Mail — already sent */}
+          {data.confirmation_sent_at && (
+            <div className="rounded-2xl border bg-emerald-500/5 border-emerald-500/20 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 space-y-3">
+                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-5 w-5" />
+                  <h2 className="text-sm font-semibold">Rückgabebestätigung versendet</h2>
+                </div>
+                <div className="text-sm space-y-1">
+                  <p><span className="text-muted-foreground">Datum:</span> {new Date(data.confirmation_sent_at).toLocaleDateString("de-DE")} um {new Date(data.confirmation_sent_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr</p>
+                  {mailResult && (
+                    <>
+                      <p><span className="text-muted-foreground">AN:</span> {mailResult.sent_to}</p>
+                      <p><span className="text-muted-foreground">BCC:</span> {mailResult.bcc}</p>
+                      <p><span className="text-muted-foreground">CC:</span> {mailResult.cc?.join(", ") || "—"}</p>
+                    </>
+                  )}
+                  {!mailResult && data.notes && (() => {
+                    const logMatch = data.notes.match(/AN:\s*(.+)\nBCC:\s*(.+)\nCC:\s*(.+)/m)
+                    if (!logMatch) return null
+                    return (
+                      <>
+                        <p><span className="text-muted-foreground">AN:</span> {logMatch[1]}</p>
+                        <p><span className="text-muted-foreground">BCC:</span> {logMatch[2]}</p>
+                        <p><span className="text-muted-foreground">CC:</span> {logMatch[3]}</p>
+                      </>
+                    )
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Confirmation Mail — not yet sent */}
+          {allDevicesReturned && !data.confirmation_sent_at && (
             <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
               {!showMailForm && (
                 <div className="px-5 py-4 flex items-center justify-center">
@@ -431,54 +469,49 @@ export default function OffboardingDetailPage({ params }: { params: Promise<{ id
                 </div>
               )}
               {showMailForm && (
-              <div className="px-5 py-3 border-b bg-muted/30 flex items-center justify-between">
-                <h2 className="text-sm font-semibold flex items-center gap-2">
-                  <Send className="h-4 w-4" /> Rückgabebestätigung versenden
-                </h2>
-              </div>
-              )}
-              {showMailForm && (
-                <div className="p-5 space-y-4">
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">Private E-Mail-Adresse des Mitarbeiters (BCC) *</label>
-                    <input
-                      type="email"
-                      className={inp}
-                      placeholder="vorname.nachname@privat.de"
-                      value={privateEmail}
-                      onChange={e => setPrivateEmail(e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Wird als BCC gesendet — nicht für andere Empfänger sichtbar.</p>
+                <>
+                  <div className="px-5 py-3 border-b bg-muted/30">
+                    <h2 className="text-sm font-semibold flex items-center gap-2">
+                      <Send className="h-4 w-4" /> Rückgabebestätigung versenden
+                    </h2>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">Weitere Empfänger (CC)</label>
-                    <input
-                      type="text"
-                      className={inp}
-                      placeholder="person1@firma.de, person2@firma.de"
-                      value={ccAddresses}
-                      onChange={e => setCcAddresses(e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Komma-getrennt. Ersteller des Offboardings und durchführender Agent werden automatisch ins CC genommen.</p>
-                  </div>
-                  <div className="flex items-center justify-between pt-2 border-t">
-                    <p className="text-xs text-muted-foreground">
-                      AN: {data.employee_email || "—"} · BCC: {privateEmail || "—"} · CC: Ersteller + {ccAddresses || "keine weiteren"}
-                    </p>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setShowMailForm(false)}>Abbrechen</Button>
-                      <Button size="sm" onClick={sendConfirmationMail} disabled={sendingMail || !privateEmail}>
-                        {sendingMail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
-                        Bestätigung senden
-                      </Button>
+                  <div className="p-5 space-y-4">
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Private E-Mail-Adresse des Mitarbeiters (BCC) *</label>
+                      <input
+                        type="email"
+                        className={inp}
+                        placeholder="vorname.nachname@privat.de"
+                        value={privateEmail}
+                        onChange={e => setPrivateEmail(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Wird als BCC gesendet — nicht für andere Empfänger sichtbar.</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Weitere Empfänger (CC)</label>
+                      <input
+                        type="text"
+                        className={inp}
+                        placeholder="person1@firma.de, person2@firma.de"
+                        value={ccAddresses}
+                        onChange={e => setCcAddresses(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Komma-getrennt. Ersteller des Offboardings und durchführender Agent werden automatisch ins CC genommen.</p>
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      <p className="text-xs text-muted-foreground">
+                        AN: {data.employee_email || "—"} · BCC: {privateEmail || "—"} · CC: Ersteller + Agent {ccAddresses ? `+ ${ccAddresses}` : ""}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setShowMailForm(false)}>Abbrechen</Button>
+                        <Button size="sm" onClick={sendConfirmationMail} disabled={sendingMail || !privateEmail}>
+                          {sendingMail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
+                          Bestätigung senden
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-              {data.confirmation_sent_at && (
-                <div className="px-5 py-3 bg-emerald-500/5 border-t text-xs text-emerald-600">
-                  ✓ Bestätigungs-Mail versendet am {new Date(data.confirmation_sent_at).toLocaleDateString("de-DE")} um {new Date(data.confirmation_sent_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr
-                </div>
+                </>
               )}
             </div>
           )}
