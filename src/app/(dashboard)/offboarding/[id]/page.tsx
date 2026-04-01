@@ -293,7 +293,7 @@ export default function OffboardingDetailPage({ params }: { params: Promise<{ id
                           {device.return_condition_summary || "—"}
                         </td>
                         <td className="py-3 text-right">
-                          {!device.status === 'returned' && (
+                          {device.status !== 'returned' && (
                             <Button variant="outline" size="sm" onClick={() => openReturnModal(device)}>
                               Zurücknehmen
                             </Button>
@@ -342,7 +342,7 @@ export default function OffboardingDetailPage({ params }: { params: Promise<{ id
                       value={ccAddresses}
                       onChange={e => setCcAddresses(e.target.value)}
                     />
-                    <p className="text-xs text-muted-foreground mt-1">Komma-getrennt. Der Ersteller des Offboardings wird automatisch ins CC genommen.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Komma-getrennt. Ersteller des Offboardings und durchführender Agent werden automatisch ins CC genommen.</p>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t">
                     <p className="text-xs text-muted-foreground">

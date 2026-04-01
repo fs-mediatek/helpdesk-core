@@ -117,9 +117,10 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     .replace(/\{\{devices\}\}/g, devicesHtml)
     .replace(/\{\{company\}\}/g, companyName)
 
-  // Build CC list: creator always + additional addresses
+  // Build CC list: creator + current agent + additional addresses
   const ccList: string[] = []
   if (request.creator_email) ccList.push(request.creator_email)
+  if (session.email && session.email !== request.creator_email) ccList.push(session.email)
   if (cc_addresses) {
     const additional = cc_addresses.split(",").map((a: string) => a.trim()).filter((a: string) => a.includes("@"))
     ccList.push(...additional)
