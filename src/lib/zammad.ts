@@ -112,6 +112,15 @@ const HELPDESK_STATE_TO_ZAMMAD: Record<string, number> = {
 
 // ─── Import new tickets from Zammad ───
 
+// Rewrite Zammad-internal URLs to go through our proxy
+function rewriteZammadUrls(html: string): string {
+  if (!html) return html
+  // Rewrite relative URLs like /api/v1/ticket_attachment/...
+  return html.replace(/src="(\/api\/v1\/[^"]+)"/g, (_, path) => {
+    return `src="/api/zammad-proxy?path=${encodeURIComponent(path)}"`
+  })
+}
+
 function toMysqlDate(isoStr: string): string {
   if (!isoStr) return new Date().toISOString().slice(0, 19).replace("T", " ")
   return new Date(isoStr).toISOString().slice(0, 19).replace("T", " ")
@@ -223,7 +232,7 @@ export async function syncFromZammad(): Promise<{ imported: number; updated: num
         try {
           const articles = await zammadFetch(`/ticket_articles/by_ticket/${t.id}`)
           if (articles?.length > 0) {
-            description = articles[0].body || t.title
+            description = rewriteZammadUrls(articles[0].body || t.title)
           }
         } catch {}
 
@@ -305,7 +314,7 @@ async function syncArticlesFromZammad(helpdeskTicketId: number, zammadTicketId: 
     const prefix = `<p><strong>${senderLabel}: ${authorName}</strong></p>`
     // Hidden marker to prevent re-import
     const marker = `<span data-zammad-article-id="${article.id}" style="display:none"></span>`
-    const content = `${marker}${prefix}${body}`
+    const content = `${marker}${prefix}${rewriteZammadUrls(body)}`
 
     const createdAt = article.created_at ? toMysqlDate(article.created_at) : null
 
