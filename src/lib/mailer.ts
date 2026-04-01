@@ -69,7 +69,7 @@ export async function createTransport() {
   return { transport: nodemailer.createTransport(options), from: s.smtp_from || `helpdesk@localhost` }
 }
 
-export async function sendMail(to: string, subject: string, html: string) {
+export async function sendMail(to: string, subject: string, html: string, options?: { cc?: string; bcc?: string }) {
   const { transport, from } = await createTransport()
-  return transport.sendMail({ from, to, subject, html })
+  return transport.sendMail({ from, to, subject, html, cc: options?.cc, bcc: options?.bcc })
 }
