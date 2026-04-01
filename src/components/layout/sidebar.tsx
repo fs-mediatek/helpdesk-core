@@ -17,7 +17,7 @@ interface NavItem {
   key: string
   label: string
   icon: LucideIcon
-  children?: { href: string; label: string; emoji: string; adminOnly?: boolean }[]
+  children?: { href: string; label: string; emoji: string; adminOnly?: boolean; roles?: string[] }[]
 }
 
 const coreNavItems: NavItem[] = [
@@ -44,8 +44,8 @@ const coreNavItems: NavItem[] = [
   {
     key: "onboarding", href: "/p/onboarding", label: "On- & Offboarding", icon: UserPlus,
     children: [
-      { href: "/p/onboarding/onboarding", label: "Onboarding", emoji: "👤" },
-      { href: "/offboarding", label: "Offboarding", emoji: "👋" },
+      { href: "/onboarding", label: "Onboarding", emoji: "👤", roles: ["admin", "agent", "fuehrungskraft"] },
+      { href: "/offboarding", label: "Offboarding", emoji: "👋", roles: ["admin", "agent", "hr"] },
       { href: "/p/onboarding/settings", label: "Konfiguration", emoji: "⚙️", adminOnly: true },
       { href: "/offboarding/settings", label: "Offb.-Konfiguration", emoji: "⚙️", adminOnly: true },
     ]
@@ -167,7 +167,11 @@ export function Sidebar() {
               </Link>
               {hasChildren && !collapsed && active && (
                 <div className="ml-5 pl-3 border-l-2 border-muted-foreground/15 space-y-0.5 mt-0.5 mb-1">
-                  {item.children!.filter(child => !child.adminOnly || isAdmin).map(child => {
+                  {item.children!.filter(child => {
+                    if (child.adminOnly && !isAdmin) return false
+                    if (child.roles && !isAdmin && !child.roles.some(r => userRoles.includes(r))) return false
+                    return true
+                  }).map(child => {
                     const childActive = pathname === child.href || pathname.startsWith(child.href + "/")
                     return (
                       <Link
