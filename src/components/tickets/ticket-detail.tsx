@@ -171,7 +171,7 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
   const priorityInfo = priorityConfig[ticket.priority] || { label: ticket.priority, variant: "secondary" }
 
   return (
-    <div className="space-y-5 animate-fade-in max-w-5xl">
+    <div className="space-y-5 animate-fade-in">
       <div className="flex items-center gap-3">
         <Link href="/tickets">
           <Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="h-4 w-4" /></Button>
