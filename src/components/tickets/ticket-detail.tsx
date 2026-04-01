@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Send, Lock, User, Calendar, Tag, Forward, X, Loader2, Ban, Sparkles, CheckSquare, Plus, Trash2, Pencil, Users, TrendingUp, ShieldAlert, BookOpen } from "lucide-react"
+import { ArrowLeft, Send, Lock, User, Calendar, Tag, Forward, X, Loader2, Ban, Sparkles, CheckSquare, Plus, Trash2, Pencil, Users, TrendingUp, ShieldAlert, BookOpen, Mail } from "lucide-react"
 import Link from "next/link"
 import { formatDistanceToNow, format } from "date-fns"
 import { de } from "date-fns/locale"
@@ -92,6 +92,7 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
   const router = useRouter()
   const [comment, setComment] = useState("")
   const [isInternal, setIsInternal] = useState(false)
+  const [sendEmail, setSendEmail] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [status, setStatus] = useState(ticket.status)
   const [priority, setPriority] = useState(ticket.priority)
@@ -110,7 +111,7 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
     await fetch(`/api/tickets/${ticket.id}/comments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: comment, is_internal: isInternal }),
+      body: JSON.stringify({ body: comment, is_internal: isInternal, send_email: !isInternal && sendEmail }),
     })
     setComment("")
     router.refresh()
@@ -201,6 +202,13 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
           {/* Comments */}
           <div className="space-y-3">
             {ticket.comments?.map((c: any) => (
+              Number(c.is_system) ? (
+                <div key={c.id} className="flex items-center gap-2 text-xs text-muted-foreground px-2 py-1">
+                  <Mail className="h-3 w-3 shrink-0" />
+                  <span>{c.content}</span>
+                  <span>— {formatDistanceToNow(new Date(c.created_at), { locale: de, addSuffix: true })}</span>
+                </div>
+              ) : (
               <div key={c.id} className={`flex gap-3 ${Number(c.is_internal) ? "opacity-75" : ""}`}>
                 <Avatar className="h-8 w-8 shrink-0">
                   <AvatarFallback className="text-xs">{c.author_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}</AvatarFallback>
@@ -216,6 +224,7 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
                   </div>
                 </div>
               </div>
+              )
             ))}
           </div>
 
@@ -230,13 +239,22 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
                   rows={3}
                 />
                 <div className="flex items-center justify-between gap-2">
-                  {isAdmin && (
-                    <label className="flex items-center gap-2 text-sm cursor-pointer">
-                      <input type="checkbox" checked={isInternal} onChange={e => setIsInternal(e.target.checked)} className="rounded" />
-                      <Lock className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-muted-foreground">Interne Notiz</span>
-                    </label>
-                  )}
+                  <div className="flex items-center gap-4">
+                    {isAdmin && (
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" checked={isInternal} onChange={e => { setIsInternal(e.target.checked); if (e.target.checked) setSendEmail(false) }} className="rounded" />
+                        <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-muted-foreground">Interne Notiz</span>
+                      </label>
+                    )}
+                    {!isInternal && (
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" checked={sendEmail} onChange={e => setSendEmail(e.target.checked)} className="rounded" />
+                        <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-muted-foreground">Per E-Mail senden</span>
+                      </label>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 ml-auto">
                     {isAdmin && (
                       <Button type="button" variant="outline" size="sm" disabled={analyzing} onClick={async () => {
