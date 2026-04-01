@@ -147,7 +147,8 @@ export function Sidebar() {
         )}
         {ready && visibleNavItems.map((item) => {
           const Icon = item.icon
-          const active = pathname === item.href || pathname.startsWith(item.href + "/")
+          const childMatch = item.children?.some(c => pathname === c.href || pathname.startsWith(c.href + "/"))
+          const active = pathname === item.href || pathname.startsWith(item.href + "/") || !!childMatch
           const hasChildren = item.children && item.children.length > 0
           return (
             <div key={item.href}>

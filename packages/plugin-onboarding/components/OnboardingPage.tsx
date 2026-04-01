@@ -801,11 +801,13 @@ export default function OnboardingPage({ slug }: { slug: string[] }) {
           >
             <RefreshCw className="w-4 h-4" />
           </button>
-          <a href="/onboarding/new?type=onboarding"
-            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors">
-            <UserPlus className="w-4 h-4" />
-            Neues Onboarding
-          </a>
+          {activeTab === 'onboarding' && (
+            <a href="/onboarding/new?type=onboarding"
+              className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors">
+              <UserPlus className="w-4 h-4" />
+              Neues Onboarding
+            </a>
+          )}
         </div>
       </div>
 
