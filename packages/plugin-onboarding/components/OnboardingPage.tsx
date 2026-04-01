@@ -776,13 +776,15 @@ export default function OnboardingPage({ slug }: { slug: string[] }) {
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: 'onboarding', label: 'Onboardings', icon: <UserPlus className="w-4 h-4" /> },
-    { id: 'offboarding', label: 'Offboardings', icon: <LogOut className="w-4 h-4" /> },
   ]
 
   const activeItems = [...onboardings, ...offboardings]
     .filter(r => r.status !== 'completed' && r.status !== 'cancelled')
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+  const completedItems = [...onboardings, ...offboardings]
+    .filter(r => r.status === 'completed' || r.status === 'cancelled')
+    .sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime())
     .slice(0, 10)
 
   return (
@@ -811,8 +813,8 @@ export default function OnboardingPage({ slug }: { slug: string[] }) {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b">
+      {/* Tabs — hidden when only dashboard */}
+      {tabs.length > 1 && <div className="flex gap-1 border-b">
         {tabs.map(tab => (
           <button
             key={tab.id}
@@ -827,7 +829,7 @@ export default function OnboardingPage({ slug }: { slug: string[] }) {
             {tab.label}
           </button>
         ))}
-      </div>
+      </div>}
 
       {/* Dashboard */}
       {activeTab === 'dashboard' && (
@@ -879,6 +881,32 @@ export default function OnboardingPage({ slug }: { slug: string[] }) {
               </div>
             )}
           </div>
+
+          {/* Abgeschlossene Vorgänge */}
+          {completedItems.length > 0 && (
+            <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+              <div className="px-5 py-3 border-b bg-muted/30">
+                <h2 className="text-sm font-semibold">Abgeschlossene Vorgänge</h2>
+              </div>
+              <div className="divide-y">
+                {completedItems.map(req => (
+                  <div
+                    key={req.id}
+                    className="flex items-center gap-4 px-5 py-3 hover:bg-muted/50 transition-colors cursor-pointer opacity-60"
+                    onClick={() => setSelectedRequest(req)}
+                  >
+                    <TypeBadge type={req.type} />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">{req.employee_name}</div>
+                      <div className="text-xs text-muted-foreground">{req.department ?? ''}</div>
+                    </div>
+                    <StatusBadge status={req.status} />
+                    <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
