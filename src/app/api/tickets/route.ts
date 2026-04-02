@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     ${where} ORDER BY t.created_at DESC LIMIT ${limit} OFFSET ${offset}
   `, params)
 
-  const [countResult] = await query(`SELECT COUNT(*) as total FROM tickets t ${where}`, params)
+  const [countResult] = await query(`SELECT COUNT(*) as total FROM tickets t LEFT JOIN users u ON t.requester_id = u.id ${where}`, params)
 
   // Mark delegate tickets for the frontend
   const userId = session.userId
