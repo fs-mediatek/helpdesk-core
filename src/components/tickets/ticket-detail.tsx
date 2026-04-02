@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Send, Lock, User, Calendar, Tag, Forward, X, Loader2, Ban, Sparkles, CheckSquare, Plus, Trash2, Pencil, Users, TrendingUp, ShieldAlert, BookOpen, Mail, FileText } from "lucide-react"
+import { ArrowLeft, Send, Lock, User, Calendar, Tag, Forward, X, Loader2, Ban, Sparkles, CheckSquare, Plus, Trash2, Pencil, Users, TrendingUp, ShieldAlert, BookOpen, Mail, FileText, ImagePlus } from "lucide-react"
 import { TemplateSelector } from "@/components/shared/template-selector"
 import Link from "next/link"
 import { formatDistanceToNow, format } from "date-fns"
@@ -100,6 +100,9 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
   const [isInternal, setIsInternal] = useState(false)
   const [sendEmail, setSendEmail] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const imgInputRef = useRef<HTMLInputElement>(null)
+  const commentRef = useRef<HTMLDivElement>(null)
   const [status, setStatus] = useState(ticket.status)
   const [priority, setPriority] = useState(ticket.priority)
   const [assigneeId, setAssigneeId] = useState(ticket.assignee_id?.toString() || "none")
@@ -110,16 +113,39 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
   const isAdmin = session?.role?.includes("admin") || session?.role?.includes("agent")
   const isDelegate = ticket.is_delegate  // current user is the delegate on this ticket
 
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      const res = await fetch(`/api/tickets/${ticket.id}/upload`, { method: "POST", body: fd })
+      const data = await res.json()
+      if (data.url) {
+        const imgTag = `<img src="${data.url}" style="max-width:100%;border-radius:8px;margin:8px 0;" />`
+        setComment(prev => prev ? prev + "\n" + imgTag : imgTag)
+        if (commentRef.current) {
+          commentRef.current.innerHTML += imgTag
+        }
+      }
+    } catch {}
+    setUploading(false)
+    if (imgInputRef.current) imgInputRef.current.value = ""
+  }
+
   async function submitComment(e: React.FormEvent) {
     e.preventDefault()
-    if (!comment.trim()) return
+    const content = commentRef.current ? commentRef.current.innerHTML : comment
+    if (!content || content === "<br>" || content.trim() === "") return
     setSubmitting(true)
     await fetch(`/api/tickets/${ticket.id}/comments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: comment, is_internal: isInternal, send_email: !isInternal && sendEmail }),
+      body: JSON.stringify({ body: content, is_internal: isInternal, send_email: !isInternal && sendEmail }),
     })
     setComment("")
+    if (commentRef.current) commentRef.current.innerHTML = ""
     router.refresh()
     setSubmitting(false)
   }
@@ -238,12 +264,16 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
           <Card>
             <CardContent className="p-4">
               <form onSubmit={submitComment} className="space-y-3">
-                <Textarea
-                  placeholder="Antwort schreiben..."
-                  value={comment}
-                  onChange={e => setComment(e.target.value)}
-                  rows={3}
+                <div
+                  ref={commentRef}
+                  contentEditable
+                  className="min-h-[80px] max-h-[300px] overflow-y-auto w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_img]:rounded-lg [&_img]:max-w-full [&_img]:my-2"
+                  onInput={() => setComment(commentRef.current?.innerHTML || "")}
+                  data-placeholder="Antwort schreiben..."
+                  style={{ minHeight: 80 }}
+                  suppressContentEditableWarning
                 />
+                <input ref={imgInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-4">
                     {isAdmin && (
@@ -262,10 +292,20 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap">
+                    <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => imgInputRef.current?.click()}>
+                      {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />} Bild
+                    </Button>
                     {isAdmin && (
                       <TemplateSelector
                         type="answer"
-                        onSelect={(t) => setComment(prev => prev ? prev + "\n\n" + t.content : t.content)}
+                        onSelect={(t) => {
+                          if (commentRef.current) {
+                            commentRef.current.innerHTML += (commentRef.current.innerHTML ? "<br><br>" : "") + t.content
+                            setComment(commentRef.current.innerHTML)
+                          } else {
+                            setComment(prev => prev ? prev + "\n\n" + t.content : t.content)
+                          }
+                        }}
                       />
                     )}
                     {isAdmin && (
@@ -489,6 +529,7 @@ export function TicketDetail({ ticket, session }: { ticket: any; session: any })
       </div>
 
       {showForward && <ForwardModal ticket={ticket} onClose={() => { setShowForward(false); router.refresh() }} />}
+      <style>{`[contenteditable][data-placeholder]:empty:before { content: attr(data-placeholder); color: hsl(var(--muted-foreground)); pointer-events: none; }`}</style>
     </div>
   )
 }
