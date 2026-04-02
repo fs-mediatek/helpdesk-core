@@ -25,6 +25,6 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   await writeFile(join(dir, filename), Buffer.from(await file.arrayBuffer()))
 
   const url = `/catalog-images/${filename}`
-  await query("UPDATE order_products SET image_url = ? WHERE id = ?", [url, id])
+  await query("UPDATE catalog SET image_url = ? WHERE id = ?", [url, id])
   return NextResponse.json({ url })
 }
