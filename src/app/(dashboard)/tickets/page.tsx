@@ -161,6 +161,7 @@ function TicketsContent() {
                   <TableHead>Priorität</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Ersteller</TableHead>
+                  <TableHead>Zugewiesen</TableHead>
                   <TableHead>Erstellt</TableHead>
                 </TableRow>
               </TableHeader>
@@ -189,6 +190,7 @@ function TicketsContent() {
                       <TableCell><Badge variant={priority.variant}>{priority.label}</Badge></TableCell>
                       <TableCell><Badge variant={status.variant}>{status.label}</Badge></TableCell>
                       <TableCell className="text-sm text-muted-foreground">{ticket.requester_name}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{ticket.assignee_name || "—"}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{formatDistanceToNow(new Date(ticket.created_at), { locale: de, addSuffix: true })}</TableCell>
                     </TableRow>
                   )
