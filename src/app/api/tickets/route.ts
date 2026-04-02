@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
   if (status === "active" || !status) { where += " AND t.status NOT IN ('closed', 'resolved')" }
   else if (status && status !== "all") { where += " AND t.status = ?"; params.push(status) }
   if (priority) { where += " AND t.priority = ?"; params.push(priority) }
-  if (search) { where += " AND (t.title LIKE ? OR t.ticket_number LIKE ?)"; params.push(`%${search}%`, `%${search}%`) }
+  if (search) { where += " AND (t.title LIKE ? OR t.ticket_number LIKE ? OR u.name LIKE ? OR u.email LIKE ?)"; params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`) }
 
   const tickets = await query(`
     SELECT t.*, u.name as requester_name, a.name as assignee_name, d.name as delegate_name
