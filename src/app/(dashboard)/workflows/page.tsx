@@ -153,7 +153,7 @@ function StepEditor({ steps, onChange, roles, actionTypes }: { steps: Step[]; on
   )
 }
 
-function CategoryModal({ cat, roles, onClose, onSaved }: { cat?: Category; roles: RoleDef[]; onClose: () => void; onSaved: () => void }) {
+function CategoryModal({ cat, roles, actionTypes, onClose, onSaved }: { cat?: Category; roles: RoleDef[]; actionTypes?: { key: string; label: string }[]; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({
     name: cat?.name || "",
     description: cat?.description || "",
@@ -1130,6 +1130,7 @@ export default function WorkflowsPage() {
         <CategoryModal
           cat={editCat === "new" ? undefined : editCat}
           roles={roles}
+          actionTypes={actionTypes}
           onClose={() => setEditCat(null)}
           onSaved={() => { setEditCat(null); load() }}
         />
