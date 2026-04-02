@@ -297,9 +297,12 @@ async function syncArticlesFromZammad(helpdeskTicketId: number, zammadTicketId: 
     // Skip system notifications (auto-replies, trigger messages)
     const senderName = article.sender || ""
     if (senderName === "System") continue
+    if (article.sender_id === 1) continue  // Zammad system user
     if (article.type === "note" && article.created_by_id === 1) continue
     if (/Ihre Anfrage.*ist bei uns eingegangen/i.test(body)) continue
     if (/\(INC-\d+\)/i.test(body) && /Support-Mitarbeitern überprüft/i.test(body)) continue
+    if (/wurde abschließend bearbeitet/i.test(body)) continue
+    if (/Ihre Anfrage.*wurde.*bearbeitet/i.test(body)) continue
 
     // Determine who wrote it
     let authorName = "Zammad"
@@ -314,7 +317,17 @@ async function syncArticlesFromZammad(helpdeskTicketId: number, zammadTicketId: 
     const prefix = `<p><strong>${senderLabel}: ${authorName}</strong></p>`
     // Hidden marker to prevent re-import
     const marker = `<span data-zammad-article-id="${article.id}" style="display:none"></span>`
-    const content = `${marker}${prefix}${rewriteZammadUrls(body)}`
+    // Strip quoted email thread (everything after <hr>, "Von:", "From:", blockquote)
+    let cleanBody = body
+      .replace(/<hr[\s/]*>[\s\S]*/i, '')                    // Everything after <hr>
+      .replace(/<blockquote[\s\S]*<\/blockquote>/gi, '')    // Blockquotes
+      .replace(/\n-{3,}[\s\S]*/m, '')                       // --- separator
+      .replace(/<div[^>]*>\s*<b>Von:<\/b>[\s\S]*/i, '')    // "Von:" quote header
+      .replace(/<div[^>]*>\s*<b>From:<\/b>[\s\S]*/i, '')   // "From:" quote header
+      .trim()
+    if (!cleanBody) cleanBody = body  // Fallback to original if everything was stripped
+
+    const content = `${marker}${prefix}${rewriteZammadUrls(cleanBody)}`
 
     const createdAt = article.created_at ? toMysqlDate(article.created_at) : null
 
